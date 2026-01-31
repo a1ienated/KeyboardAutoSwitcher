@@ -73,6 +73,7 @@ pch/
 
 Thumbs.db
 Desktop.ini
+*.zip
 
 ############################################
 # Crash dumps
