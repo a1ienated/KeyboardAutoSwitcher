@@ -1,8 +1,12 @@
-#define _CRT_SECURE_NO_WARNINGS
 #include "stdafx.h"
 #include "KeyboardAutoSwitcher.h"
+#include "KeyboardLayoutManager.h"
 #include<tchar.h>
 #include<xstring>
+
+#include <winrt/Windows.ApplicationModel.h>
+#include <winrt/Windows.Foundation.h>
+
 typedef std::basic_string<TCHAR, std::char_traits<TCHAR>, std::allocator<TCHAR>>String;
 
 #define MAX_LOADSTRING 100
@@ -14,18 +18,8 @@ typedef std::basic_string<TCHAR, std::char_traits<TCHAR>, std::allocator<TCHAR>>
 #define ONE_SECOND 1000
 
 #define MAX_LOADSTRING 100
-#define MAX_LAYOUTS 5
-#define MAX_NAME_LENGTH 1024
 #define STRLEN(x) (sizeof(x)/sizeof(TCHAR) - 1)
 
-// Global Variables:
-struct KeyboardLayoutInfo {
-	WCHAR names[MAX_LAYOUTS][MAX_NAME_LENGTH];
-	HKL   hkls[MAX_LAYOUTS];
-	BOOL  inUse[MAX_LAYOUTS];
-	UINT  count;
-	UINT  currentSlotLang;
-}g_keyboardInfo;
 UINT countTimerSec = 0;
 HHOOK g_hHook = NULL;
 BOOL isAnyPressed = FALSE;
@@ -46,10 +40,7 @@ LRESULT CALLBACK    WndProc(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK    DlgProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam);
 VOID CALLBACK TimerProc(HWND hWnd, UINT message, UINT idTimer, DWORD dwTime);
 LRESULT CALLBACK LowLevelHookProc(int nCode, WPARAM wParam, LPARAM lParam);
-void GetKeyboardLayouts();
-void SwitchToLayoutNumber(int number);
 void SetTimerCount(unsigned int count);
-UINT GetIndexLanguage();
 
 // main window
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPWSTR lpCmdLine, _In_ int nCmdShow)
@@ -258,6 +249,11 @@ void SetTimerCount(unsigned int count)
 	countTimerSec = count;
 }
 
+
+
+
+
+
 //  Processes messages for the main window.
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
@@ -375,77 +371,6 @@ VOID CALLBACK TimerProc(
 		SetTimerCount(0);
 
 	InvalidateRect(hWnd, NULL, TRUE);
-}
-
-HWND RemoteGetFocus() 
-{
-	HWND hwnd = GetForegroundWindow();
-	DWORD remoteThreadId = GetWindowThreadProcessId(hwnd, NULL);
-	DWORD currentThreadId = GetCurrentThreadId();
-
-	AttachThreadInput(remoteThreadId, currentThreadId, TRUE);
-	HWND focused = GetFocus();
-	AttachThreadInput(remoteThreadId, currentThreadId, FALSE);
-
-	if (!focused) return hwnd;
-	return focused;
-}
-
-HKL GetCurrentLayout() 
-{
-	HWND hwnd = RemoteGetFocus();
-	DWORD threadId = GetWindowThreadProcessId(hwnd, NULL);
-	return GetKeyboardLayout(threadId);
-}
-
-UINT GetIndexLanguage()
-{
-	HKL currentLayout = GetCurrentLayout();
-	UINT index = 0;
-	for (; index < g_keyboardInfo.count; index++) {
-		if (!g_keyboardInfo.inUse[index]) {
-			continue;
-		}
-		if (g_keyboardInfo.hkls[index] == currentLayout)
-			break;
-	}
-	return index;
-}
-
-void GetKeyboardLayouts() {
-	memset(&g_keyboardInfo, 0, sizeof(KeyboardLayoutInfo));
-	g_keyboardInfo.count = GetKeyboardLayoutList(MAX_LAYOUTS, g_keyboardInfo.hkls);
-	for (UINT i = 0; i < g_keyboardInfo.count; i++) {
-		LANGID language = (LANGID)(((UINT)g_keyboardInfo.hkls[i]) & 0x0000FFFF); // bottom 16 bit of HKL
-		LCID locale = MAKELCID(language, SORT_DEFAULT);
-		GetLocaleInfo(locale, LOCALE_SLANGUAGE, g_keyboardInfo.names[i], MAX_NAME_LENGTH);
-		g_keyboardInfo.inUse[i] = TRUE;
-	}
-
-	g_keyboardInfo.currentSlotLang = GetIndexLanguage();
-}
-
-HKL ChangeInputLanguage(UINT newLanguage) 
-{
-	HWND hwnd = RemoteGetFocus();
-	g_keyboardInfo.currentSlotLang = newLanguage;
-	PostMessage(hwnd, WM_INPUTLANGCHANGEREQUEST, 0, (LPARAM)(g_keyboardInfo.hkls[g_keyboardInfo.currentSlotLang]));
-	return g_keyboardInfo.hkls[g_keyboardInfo.currentSlotLang];
-}
-
-void SwitchToLayoutNumber(int number) 
-{
-	HKL currentLayout = GetCurrentLayout();
-	for (UINT i = 0; i < g_keyboardInfo.count; i++) {
-		if (!g_keyboardInfo.inUse[i]) {
-			continue;
-		}
-		if (number == i) {
-			if (g_keyboardInfo.hkls[i] != currentLayout)
-				ChangeInputLanguage(i);
-			break;
-		}
-	}
 }
 
 BOOL IsKeyPressed(int nVirtKey)
