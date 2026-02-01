@@ -258,63 +258,6 @@ void SetTimerCount(unsigned int count)
 	countTimerSec = count;
 }
 
-bool RegAddKey()
-{
-	HKEY hKey = NULL;
-	LONG lResult = 0;
-	TCHAR szRunPath[MAX_PATH + 1];
-	GetModuleFileName(NULL, szRunPath, STRLEN(szRunPath));
-
-	lResult = RegCreateKeyEx(HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Run",
-		0, NULL, 0, KEY_ALL_ACCESS, NULL, &hKey, NULL);
-
-	if (ERROR_SUCCESS != lResult)
-		return false;
-	
-	RegOpenKey(HKEY_CURRENT_USER, L"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run", &hKey);
-	RegSetValueEx(hKey, L"KeyboardAutoSwitcher", 0, REG_SZ, (PBYTE)szRunPath, lstrlen(szRunPath) * sizeof(TCHAR) + 1);
-	RegCloseKey(hKey);
-
-	return true;
-}
-
-bool RegDelKey()
-{
-	HKEY hKey = NULL;
-	LONG lResult = 0;
-	TCHAR szRunPath[MAX_PATH + 1];
-	GetModuleFileName(NULL, szRunPath, STRLEN(szRunPath));
-	
-	lResult = RegOpenKeyEx(HKEY_CURRENT_USER, L"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run", 0L, KEY_SET_VALUE, &hKey);
-	if (lResult != ERROR_SUCCESS)
-		return false;
-
-	lResult = RegDeleteValue(hKey, L"KeyboardAutoSwitcher");
-	lResult = RegCloseKey(hKey);
-
-	return true;
-}
-
-bool RegFindKey()
-{
-	HKEY hKey;
-	LONG lResult;
-	DWORD dwType = REG_SZ;
-	TCHAR lszValue[255] = {};
-	DWORD dwSize = 255;
-	lResult = RegOpenKeyEx(HKEY_CURRENT_USER, L"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run", NULL, KEY_ALL_ACCESS, &hKey);
-	if (lResult != ERROR_SUCCESS)
-		return false;
-
-	lResult = RegQueryValueEx(hKey, L"KeyboardAutoSwitcher", NULL, &dwType, (LPBYTE)&lszValue, &dwSize);
-	if (lResult != ERROR_SUCCESS)
-		return false;
-	RegCloseKey(hKey);
-
-	//MessageBox(hWnd, TEXT("Success!"), TEXT("Event"), 0);
-	return true;
-}
-
 //  Processes messages for the main window.
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
@@ -351,11 +294,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		{
 			BOOL checked = IsDlgButtonChecked(hWnd, IDM_CHECKBOX);
 			if (checked) {
-				RegDelKey();
+				// RegDelKey();
 				CheckDlgButton(hWnd, IDM_CHECKBOX, BST_UNCHECKED);
 			}
 			else {
-				RegAddKey();
+				// RegAddKey();
 				CheckDlgButton(hWnd, IDM_CHECKBOX, BST_CHECKED);
 			}
 			break;
@@ -373,7 +316,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			WS_VISIBLE | WS_CHILD | BS_CHECKBOX,
 			20, 40, 185, 35,
 			hWnd, (HMENU)IDM_CHECKBOX, ((LPCREATESTRUCT)lParam)->hInstance, NULL);
-		CheckDlgButton(hWnd, IDM_CHECKBOX, RegFindKey() ? BST_CHECKED : BST_UNCHECKED);
+		// CheckDlgButton(hWnd, IDM_CHECKBOX, RegFindKey() ? BST_CHECKED : BST_UNCHECKED);
 
 		SetTimer(hWnd, IDT_TIMER1, ONE_SECOND * 15, NULL);
 		SetTimer(hWnd, IDT_TIMER2, ONE_SECOND, (TIMERPROC)TimerProc);
