@@ -1,12 +1,16 @@
 #include "stdafx.h"
-#include "KeyboardAutoSwitcher.h"
-#include "KeyboardLayoutManager.h"
 #include<tchar.h>
 #include<xstring>
 
-#include <winrt/Windows.ApplicationModel.h>
-#include <winrt/Windows.Foundation.h>
+//#include <winrt/Windows.ApplicationModel.h>
+//#include <winrt/Windows.Foundation.h>
 
+#include "KeyboardAutoSwitcher.h"
+#include "KeyboardLayoutManager.h"
+#include "StartupTaskHelper.h"
+
+
+#include <comdef.h>
 typedef std::basic_string<TCHAR, std::char_traits<TCHAR>, std::allocator<TCHAR>>String;
 
 #define MAX_LOADSTRING 100
@@ -20,6 +24,7 @@ typedef std::basic_string<TCHAR, std::char_traits<TCHAR>, std::allocator<TCHAR>>
 #define MAX_LOADSTRING 100
 #define STRLEN(x) (sizeof(x)/sizeof(TCHAR) - 1)
 
+bool g_chkbxStartup = 0;
 UINT countTimerSec = 0;
 HHOOK g_hHook = NULL;
 BOOL isAnyPressed = FALSE;
@@ -42,6 +47,37 @@ VOID CALLBACK TimerProc(HWND hWnd, UINT message, UINT idTimer, DWORD dwTime);
 LRESULT CALLBACK LowLevelHookProc(int nCode, WPARAM wParam, LPARAM lParam);
 void SetTimerCount(unsigned int count);
 
+HRESULT CoInit()
+{
+	HRESULT hr = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+	if (FAILED(hr))
+	{
+		std::cerr << "CoInitializeEx failed: " << hr << std::endl;
+		return hr;
+	}
+
+	// Set general COM security levels
+	hr = CoInitializeSecurity(
+		nullptr,
+		-1,
+		nullptr,
+		nullptr,
+		RPC_C_AUTHN_LEVEL_PKT_PRIVACY,
+		RPC_C_IMP_LEVEL_IMPERSONATE,
+		nullptr,
+		0,
+		nullptr);
+
+	if (FAILED(hr) && hr != RPC_E_TOO_LATE)
+	{
+		std::cerr << "CoInitializeSecurity failed: " << hr << std::endl;
+		CoUninitialize();
+		return hr;
+	}
+
+	return hr;
+}
+
 // main window
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPWSTR lpCmdLine, _In_ int nCmdShow)
 {
@@ -53,6 +89,8 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
 		MessageBox(NULL, L"KeyboardAutoSwitcher is already running.", L"KeyboardAutoSwitcher", MB_OK | MB_ICONINFORMATION);
 		return 1;
 	}
+
+	CoInit();
     
 	// Store instance handle in our global variable.
     hInst = hInstance;
@@ -288,14 +326,16 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			break;
 		case IDM_CHECKBOX:
 		{
-			BOOL checked = IsDlgButtonChecked(hWnd, IDM_CHECKBOX);
-			if (checked) {
-				// RegDelKey();
-				CheckDlgButton(hWnd, IDM_CHECKBOX, BST_UNCHECKED);
+			g_chkbxStartup = IsDlgButtonChecked(hWnd, IDM_CHECKBOX);
+			if (!g_chkbxStartup) {
+				startup::EnableStartup();
+				CheckDlgButton(hWnd, IDM_CHECKBOX, BST_CHECKED);
+				g_chkbxStartup = true;
 			}
 			else {
-				// RegAddKey();
-				CheckDlgButton(hWnd, IDM_CHECKBOX, BST_CHECKED);
+				startup::DisableStartup();
+				CheckDlgButton(hWnd, IDM_CHECKBOX, BST_UNCHECKED);
+				g_chkbxStartup = false;
 			}
 			break;
 		}
@@ -312,7 +352,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			WS_VISIBLE | WS_CHILD | BS_CHECKBOX,
 			20, 40, 185, 35,
 			hWnd, (HMENU)IDM_CHECKBOX, ((LPCREATESTRUCT)lParam)->hInstance, NULL);
-		// CheckDlgButton(hWnd, IDM_CHECKBOX, RegFindKey() ? BST_CHECKED : BST_UNCHECKED);
+
+		g_chkbxStartup = startup::IsStartupEnabled();
+		//g_chkbxStartup = IsDlgButtonChecked(hWnd, IDM_CHECKBOX);
+		CheckDlgButton(hWnd, IDM_CHECKBOX, g_chkbxStartup ? BST_CHECKED : BST_UNCHECKED);
 
 		SetTimer(hWnd, IDT_TIMER1, ONE_SECOND * 15, NULL);
 		SetTimer(hWnd, IDT_TIMER2, ONE_SECOND, (TIMERPROC)TimerProc);
