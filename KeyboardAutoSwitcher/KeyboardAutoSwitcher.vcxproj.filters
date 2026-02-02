@@ -39,6 +39,9 @@
     <ClInclude Include="Log\logger.h">
       <Filter>Header Files\Logger</Filter>
     </ClInclude>
+    <ClInclude Include="StartupTaskHelper.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="stdafx.cpp">
@@ -52,6 +55,9 @@
     </ClCompile>
     <ClCompile Include="Log\logger.cpp">
       <Filter>Source Files\Logger</Filter>
+    </ClCompile>
+    <ClCompile Include="StartupTaskHelper.cpp">
+      <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
