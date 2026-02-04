@@ -36,6 +36,9 @@ Generated Files/
 *.msix
 *.msixbundle
 *.cer
+*.pfx
+*.p12
+*.snk
 
 ############################################
 # Intermediate / cache files

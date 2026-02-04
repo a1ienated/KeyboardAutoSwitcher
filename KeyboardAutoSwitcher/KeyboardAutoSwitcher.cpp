@@ -1,11 +1,9 @@
-#include "stdafx.h"
+﻿#include "stdafx.h"
 #include "KeyboardAutoSwitcher.h"
 #include "KeyboardLayoutManager.h"
+#include "StartupManager.h"
 #include<tchar.h>
 #include<xstring>
-
-#include <winrt/Windows.ApplicationModel.h>
-#include <winrt/Windows.Foundation.h>
 
 typedef std::basic_string<TCHAR, std::char_traits<TCHAR>, std::allocator<TCHAR>>String;
 
@@ -45,33 +43,34 @@ void SetTimerCount(unsigned int count);
 // main window
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPWSTR lpCmdLine, _In_ int nCmdShow)
 {
-    UNREFERENCED_PARAMETER(hPrevInstance);
-    UNREFERENCED_PARAMETER(lpCmdLine);
+	UNREFERENCED_PARAMETER(hPrevInstance);
+	UNREFERENCED_PARAMETER(lpCmdLine);
+	
 	// Prevent from two copies of Recaps from running at the same time
 	HANDLE mutex = CreateMutex(NULL, FALSE, L"KeyboardAutoSwitcher");
 	if (!mutex || WaitForSingleObject(mutex, 0) == WAIT_TIMEOUT) {
-		MessageBox(NULL, L"KeyboardAutoSwitcher is already running.", L"KeyboardAutoSwitcher", MB_OK | MB_ICONINFORMATION);
+		//KAS_MSG(NULL, L"KeyboardAutoSwitcher is already running.");
 		return 1;
 	}
-    
+
 	// Store instance handle in our global variable.
-    hInst = hInstance;
+	hInst = hInstance;
 
 	GetKeyboardLayouts();
 	// Set hook to capture CapsLock
 	g_hHook = SetWindowsHookEx(WH_KEYBOARD_LL, LowLevelHookProc, GetModuleHandle(NULL), 0);
 	PostMessage(NULL, WM_NULL, 0, 0);
 
-    // Initialize global strings
-    LoadStringW(hInstance, IDS_APP_TITLE, szTitle, MAX_LOADSTRING);
-    LoadStringW(hInstance, IDC_KEYBOARDAUTOSWITCHER, szWindowClass, MAX_LOADSTRING);
+	// Initialize global strings
+	LoadStringW(hInstance, IDS_APP_TITLE, szTitle, MAX_LOADSTRING);
+	LoadStringW(hInstance, IDC_KEYBOARDAUTOSWITCHER, szWindowClass, MAX_LOADSTRING);
 
 	// register class
 	if (!RegMyWindowClass(hInstance, szWindowClass))
 		return 1;
 
-    // Create the main program window.
-    HWND hWnd = CreateWindowW(szWindowClass,
+	// Create the main program window.
+	HWND hWnd = CreateWindowW(szWindowClass,
 		szTitle,
 		WS_OVERLAPPED | WS_SYSMENU | WS_MINIMIZEBOX,
 		CW_USEDEFAULT,
@@ -83,27 +82,27 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
 		hInstance,
 		nullptr);
 
-    if (!hWnd) return FALSE;
+	if (!hWnd) return FALSE;
 
-    // Display the main program window.
+	// Display the main program window.
 	ShowWindow(hWnd, SW_HIDE);
-    UpdateWindow(hWnd);
+	UpdateWindow(hWnd);
 
 	// Loads the specified accelerator table (hot key)
-    HACCEL hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_KEYBOARDAUTOSWITCHER));
+	HACCEL hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_KEYBOARDAUTOSWITCHER));
 
-    // Main message loop
-    MSG msg;
-    while (GetMessage(&msg, nullptr, 0, 0))
-    {
-        if (!TranslateAccelerator(msg.hwnd, hAccelTable, &msg))
-        {
-            TranslateMessage(&msg);
-            DispatchMessage(&msg);
-        }
-    }
+	// Main message loop
+	MSG msg;
+	while (GetMessage(&msg, nullptr, 0, 0))
+	{
+		if (!TranslateAccelerator(msg.hwnd, hAccelTable, &msg))
+		{
+			TranslateMessage(&msg);
+			DispatchMessage(&msg);
+		}
+	}
 
-    return (int) msg.wParam;
+	return (int) msg.wParam;
 }
 
 ATOM RegMyWindowClass(HINSTANCE hInstance, LPCTSTR lpzClassName)
@@ -125,7 +124,7 @@ ATOM RegMyWindowClass(HINSTANCE hInstance, LPCTSTR lpzClassName)
 	return RegisterClassExW(&wcex);
 }
 
-void OnLButtonDoubleClick(HWND hWnd)
+static void OnLButtonDoubleClick(HWND hWnd)
 {
 //	if (IsWindowVisible(hWnd) == TRUE)
 	{
@@ -133,12 +132,10 @@ void OnLButtonDoubleClick(HWND hWnd)
 		ShowWindow(hWnd, SW_RESTORE);
 //		ShowWindow(hWnd, SW_SHOW);
 	}
-
-//	ShowWindow(hWnd, SW_SHOW);
 }
 
 // show pop-up menu
-void OnContextMenu(HWND hWnd, int x, int y)
+static void OnContextMenu(HWND hWnd, int x, int y)
 {
 	HMENU hMenu = GetMenu(hWnd);
 	HMENU hSubMenu = GetSubMenu(hMenu, 0);
@@ -146,7 +143,7 @@ void OnContextMenu(HWND hWnd, int x, int y)
 	TrackPopupMenu(hSubMenu, TPM_LEFTALIGN | TPM_RIGHTBUTTON, x, y, 0, hWnd, NULL);
 }
 
-void OnDisable(HWND hWnd, int x, int y)
+static void OnDisable(HWND hWnd, int x, int y)
 {
 	HMENU hMenu = GetMenu(hWnd);
 	HMENU hSubMenu = GetSubMenu(hMenu, 0);
@@ -163,7 +160,7 @@ void OnDisable(HWND hWnd, int x, int y)
 }
 
 // render main window
-void OnPaint(HWND hWnd)
+static void OnPaint(HWND hWnd)
 {
 //	TCHAR strCount[10], strTm[20] = _T("Timer: ");
 	PAINTSTRUCT ps;
@@ -191,19 +188,19 @@ void OnPaint(HWND hWnd)
 	EndPaint(hWnd, &ps);
 }
 
-void OnCreate(HWND hWnd)
+static void OnCreate(HWND hWnd)
 {
 	wcscpy_s(info[0], MAX_CHAR, L"Caps Lock - default layout");
 	wcscpy_s(info[1], MAX_CHAR, L"Shift + Caps Lock - second layout");
 	wcscpy_s(info[2], MAX_CHAR, L"30 sec timer - on last input switches to default layout");
 
 	// add icon in system tray
-    nid.cbSize           = sizeof(nid);
-    nid.hWnd             = hWnd;
+	nid.cbSize           = sizeof(nid);
+	nid.hWnd             = hWnd;
 	nid.uID              = IDI_KEYBOARDAUTOSWITCHER;
-    nid.uFlags           =  NIF_ICON | NIF_MESSAGE | NIF_TIP | NIF_SHOWTIP;
+	nid.uFlags           =  NIF_ICON | NIF_MESSAGE | NIF_TIP | NIF_SHOWTIP;
 	nid.hIcon            = LoadIcon(hInst, MAKEINTRESOURCE(IDI_KEYBOARDAUTOSWITCHER));
-    nid.uCallbackMessage = WM_SYSTEM_TRAY_ICON;
+	nid.uCallbackMessage = WM_SYSTEM_TRAY_ICON;
 	nid.uVersion         = NOTIFYICON_VERSION_4;
 	wcscpy_s(nid.szTip,128,L"KeyboardAutoSwitcher - portable");
 
@@ -211,7 +208,7 @@ void OnCreate(HWND hWnd)
 	Shell_NotifyIcon(NIM_SETVERSION, &nid);
 }
 
-void OnDestroy(HWND hWnd)
+static void OnDestroy(HWND hWnd)
 {
 	KillTimer(hWnd, IDT_TIMER1);
 	KillTimer(hWnd, IDT_TIMER2);
@@ -221,18 +218,18 @@ void OnDestroy(HWND hWnd)
 	PostQuitMessage(0);
 }
 
-void OnClose(HWND hWnd)
+static void OnClose(HWND hWnd)
 {
 	ShowWindow(hWnd, SW_HIDE);
 }
 
 // display about dialog box
-void OnFileAbout(HWND hWnd, HINSTANCE hInstance)
+static void OnFileAbout(HWND hWnd, HINSTANCE hInstance)
 {
 	DialogBox(hInstance, MAKEINTRESOURCE(IDD_ABOUTBOX), hWnd, DlgProc);
 }
 
-void OnFileExit(HWND hWnd)
+static void OnFileExit(HWND hWnd)
 {
 	DestroyWindow(hWnd);
 }
@@ -249,10 +246,51 @@ void SetTimerCount(unsigned int count)
 	countTimerSec = count;
 }
 
+static void HandleStartupCheckbox(HWND hWnd)
+{
+	StartupManager sm;
+	StartupState state = sm.GetState();
 
+	if (state == StartupState::Enabled) {
+		int rc = MessageBoxW(
+			hWnd,
+			L"To disable startup, please use Windows Settings:\n"
+			L"Settings → Apps → Startup",
+			L"Disable startup",
+			MB_OKCANCEL | MB_ICONINFORMATION
+		);
+		// Reflect intent in UI (optional; you can also keep it checked until Settings changes)
+		CheckDlgButton(hWnd, IDM_CHECKBOX, BST_UNCHECKED);
 
-
-
+		if (rc == IDOK) {
+			sm.OpenStartupSettings();
+		}
+		else {
+			// If user canceled, revert UI to checked
+			CheckDlgButton(hWnd, IDM_CHECKBOX, BST_CHECKED);
+		}
+	}
+	else if (state == StartupState::Disabled) {
+		bool ok = sm.RequestEnable();
+		CheckDlgButton(
+			hWnd,
+			IDM_CHECKBOX,
+			ok ? BST_CHECKED : BST_UNCHECKED
+		);
+	}
+	else if (state == StartupState::DisabledByUser) {
+		MessageBox(
+			hWnd,
+			L"Startup is disabled by Windows.\n"
+			L"Please enable Keyboard Auto Switcher in:\n"
+			L"Settings → Apps → Startup",
+			L"Startup disabled",
+			MB_OK | MB_ICONINFORMATION
+		);
+		sm.OpenStartupSettings();
+		CheckDlgButton(hWnd, IDM_CHECKBOX, BST_UNCHECKED);
+	}
+}
 
 //  Processes messages for the main window.
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
@@ -287,18 +325,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			OnDisable(hWnd, LOWORD(wParam), HIWORD(wParam));
 			break;
 		case IDM_CHECKBOX:
-		{
-			BOOL checked = IsDlgButtonChecked(hWnd, IDM_CHECKBOX);
-			if (checked) {
-				// RegDelKey();
-				CheckDlgButton(hWnd, IDM_CHECKBOX, BST_UNCHECKED);
-			}
-			else {
-				// RegAddKey();
-				CheckDlgButton(hWnd, IDM_CHECKBOX, BST_CHECKED);
-			}
+			HandleStartupCheckbox(hWnd);
 			break;
-		}
 		default:
 			return DefWindowProc(hWnd, message, wParam, lParam);
 		}
@@ -307,18 +335,27 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		OnPaint(hWnd);
 		break;
 	case WM_CREATE:
+	{
 		hCheckbx = CreateWindow(TEXT("button"),
 			TEXT("Start with Windows"),
 			WS_VISIBLE | WS_CHILD | BS_CHECKBOX,
 			20, 40, 185, 35,
 			hWnd, (HMENU)IDM_CHECKBOX, ((LPCREATESTRUCT)lParam)->hInstance, NULL);
-		// CheckDlgButton(hWnd, IDM_CHECKBOX, RegFindKey() ? BST_CHECKED : BST_UNCHECKED);
+
+		StartupManager sm;
+		StartupState state = sm.GetState();
+		CheckDlgButton(
+			hWnd,
+			IDM_CHECKBOX,
+			(state == StartupState::Enabled) ? BST_CHECKED : BST_UNCHECKED
+		);
 
 		SetTimer(hWnd, IDT_TIMER1, ONE_SECOND * 15, NULL);
 		SetTimer(hWnd, IDT_TIMER2, ONE_SECOND, (TIMERPROC)TimerProc);
 		SetTimerCount(10);
 		OnCreate(hWnd);
 		break;
+	}
 	case WM_DESTROY:
 		OnDestroy(hWnd);
 		break;
@@ -329,8 +366,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		// set transparent color checkbox
 		if (hCheckbx == (HWND)lParam)
 		{
- 			SetBkMode((HDC)wParam, TRANSPARENT);
- 			return (LRESULT)::GetStockObject(NULL_BRUSH);
+			SetBkMode((HDC)wParam, TRANSPARENT);
+			return (LRESULT)::GetStockObject(NULL_BRUSH);
 		}
 		break;
 
