@@ -3,9 +3,9 @@
 <Package
   xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
   xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
-  xmlns:uap5="http://schemas.microsoft.com/appx/manifest/uap/windows10/5"
+  xmlns:desktop="http://schemas.microsoft.com/appx/manifest/desktop/windows10"
   xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
-  IgnorableNamespaces="uap uap5 rescap">
+  IgnorableNamespaces="uap desktop rescap">
 
   <Identity
     Name="e0d70246-dd3d-4ecd-a475-1df58b573183"
@@ -18,9 +18,12 @@
     <Logo>Images\StoreLogo.png</Logo>
   </Properties>
 
-  <Dependencies>
-	<TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.19041.0" MaxVersionTested="10.0.22621.0" />
-  </Dependencies>
+    <Dependencies>
+	    <TargetDeviceFamily
+		    Name="Windows.Desktop"
+		    MinVersion="10.0.17763.0"
+		    MaxVersionTested="10.0.22621.0" />
+    </Dependencies>
 
   <Resources>
     <Resource Language="x-generate"/>
@@ -28,9 +31,9 @@
 
   <Applications>
     <Application Id="App"
-      Executable="$targetnametoken$.exe"
-      EntryPoint="$targetentrypoint$">
-      <uap:VisualElements
+        Executable="KeyboardAutoSwitcher\KeyboardAutoSwitcher.exe"
+        EntryPoint="Windows.FullTrustApplication">
+        <uap:VisualElements
         DisplayName="Keyboard Auto Switcher"
         Description="Automatically switches keyboard layouts with hotkeys and timers."
         BackgroundColor="transparent"
@@ -38,15 +41,20 @@
         Square44x44Logo="Images\Square44x44Logo.png">
         <uap:DefaultTile Wide310x150Logo="Images\Wide310x150Logo.png" />
         <uap:SplashScreen Image="Images\SplashScreen.png" />
-      </uap:VisualElements>
+        </uap:VisualElements>
 
 	<Extensions>
-		<uap5:Extension Category="windows.startupTask">
-			<uap5:StartupTask
-				TaskId="KeyboardAutoSwitcherStartup"
-				Enabled="false"
-				DisplayName="Keyboard Auto Switcher" />
-		</uap5:Extension>
+
+		<desktop:Extension
+              Category="windows.startupTask"
+              Executable="KeyboardAutoSwitcher\KeyboardAutoSwitcher.exe"
+              EntryPoint="Windows.FullTrustApplication">
+    		<desktop:StartupTask
+			  TaskId="KeyboardAutoSwitcherStartup"
+			  Enabled="false"
+			  DisplayName="Keyboard Auto Switcher"/>
+		</desktop:Extension>
+		
 	</Extensions>
 
 	</Application>
