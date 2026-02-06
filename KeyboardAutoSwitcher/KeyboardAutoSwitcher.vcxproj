@@ -162,6 +162,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="Debug.h" />
+    <ClInclude Include="KeyboardHook.h" />
     <ClInclude Include="KeyboardLayoutManager.h" />
     <ClInclude Include="Log\logger.h" />
     <ClInclude Include="Resource.h" />
@@ -171,6 +172,7 @@
     <ClInclude Include="targetver.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="KeyboardHook.cpp" />
     <ClCompile Include="KeyboardLayoutManager.cpp" />
     <ClCompile Include="Log\logger.cpp" />
     <ClCompile Include="StartupManager.cpp" />
