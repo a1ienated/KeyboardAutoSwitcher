@@ -539,7 +539,7 @@ VOID CALLBACK TimerProc(
 
 static bool IsKeyPressed(int vKey)
 {
-	return (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0;
+	return (GetAsyncKeyState(vKey) & 0x8000) != 0;
 }
 
 static bool HandleKeyEvent(const KeyEvent& e)
