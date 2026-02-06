@@ -1,7 +1,8 @@
-﻿#include "stdafx.h"
+#include "stdafx.h"
 #include "KeyboardAutoSwitcher.h"
 #include "KeyboardLayoutManager.h"
 #include "StartupManager.h"
+#include "KeyboardHook.h"
 #include<tchar.h>
 #include<xstring>
 
@@ -24,7 +25,6 @@ typedef std::basic_string<TCHAR, std::char_traits<TCHAR>, std::allocator<TCHAR>>
 
 // global var
 UINT countTimerSec = 0;
-HHOOK g_hHook = NULL;
 BOOL isAnyPressed = FALSE;
 BOOL mDisableChecked = FALSE;
 
@@ -36,6 +36,8 @@ HWND hCheckbx;
 wchar_t info[MAX_LINE][MAX_CHAR];
 NOTIFYICONDATA nid = {};
 
+static KeyboardHook g_keyboardHook;
+
 static std::atomic_bool g_startupEnableInFlight{ false };
 static StartupManager g_startupManager;
 
@@ -44,7 +46,7 @@ ATOM RegMyWindowClass(HINSTANCE hInst, LPCTSTR lpzClassName);
 LRESULT CALLBACK    WndProc(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK    DlgProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam);
 VOID CALLBACK TimerProc(HWND hWnd, UINT message, UINT idTimer, DWORD dwTime);
-LRESULT CALLBACK LowLevelHookProc(int nCode, WPARAM wParam, LPARAM lParam);
+static bool HandleKeyEvent(const KeyEvent& e);
 void SetTimerCount(unsigned int count);
 
 // main window
@@ -52,7 +54,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
 {
 	UNREFERENCED_PARAMETER(hPrevInstance);
 	UNREFERENCED_PARAMETER(lpCmdLine);
-	
+
 	// Prevent from two copies of Recaps from running at the same time
 	HANDLE mutex = CreateMutex(NULL, FALSE, L"KeyboardAutoSwitcher");
 	if (!mutex || WaitForSingleObject(mutex, 0) == WAIT_TIMEOUT) {
@@ -68,8 +70,11 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
 	hInst = hInstance;
 
 	GetKeyboardLayouts();
-	// Set hook to capture CapsLock
-	g_hHook = SetWindowsHookEx(WH_KEYBOARD_LL, LowLevelHookProc, GetModuleHandle(NULL), 0);
+	// Set hook to capture keyboard events
+	g_keyboardHook.SetCallback(HandleKeyEvent);
+	if (!g_keyboardHook.Install()) {
+		KAS_DLOGF(L"[Hook] Failed to install WH_KEYBOARD_LL hook. err=%lu", GetLastError());
+	}
 	PostMessage(NULL, WM_NULL, 0, 0);
 
 	// Initialize global strings
@@ -113,7 +118,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
 		}
 	}
 
-	return (int) msg.wParam;
+	return (int)msg.wParam;
 }
 
 ATOM RegMyWindowClass(HINSTANCE hInstance, LPCTSTR lpzClassName)
@@ -177,9 +182,9 @@ static void OnPaint(HWND hWnd)
 	PAINTSTRUCT ps;
 	HDC hDC = BeginPaint(hWnd, &ps);
 
-//  	_tcscat(strTm, _itot(countTimerSec, strCount, 10));
-//  	TextOut(hDC, 20, 10, strTm, _tcsclen(strTm));
-	
+	//_tcscat(strTm, _itot(countTimerSec, strCount, 10));
+	//TextOut(hDC, 20, 10, strTm, _tcsclen(strTm));
+
 	g_keyboardInfo.currentSlotLang = GetIndexLanguage();
 	TCHAR labelLayout[50] = _T("Language: ");
 	_tcscat(labelLayout, g_keyboardInfo.names[g_keyboardInfo.currentSlotLang]);
@@ -206,14 +211,14 @@ static void OnCreate(HWND hWnd)
 	wcscpy_s(info[2], MAX_CHAR, L"30 sec timer - on last input switches to default layout");
 
 	// add icon in system tray
-	nid.cbSize           = sizeof(nid);
-	nid.hWnd             = hWnd;
-	nid.uID              = IDI_KEYBOARDAUTOSWITCHER;
-	nid.uFlags           =  NIF_ICON | NIF_MESSAGE | NIF_TIP | NIF_SHOWTIP;
-	nid.hIcon            = LoadIcon(hInst, MAKEINTRESOURCE(IDI_KEYBOARDAUTOSWITCHER));
+	nid.cbSize = sizeof(nid);
+	nid.hWnd = hWnd;
+	nid.uID = IDI_KEYBOARDAUTOSWITCHER;
+	nid.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP | NIF_SHOWTIP;
+	nid.hIcon = LoadIcon(hInst, MAKEINTRESOURCE(IDI_KEYBOARDAUTOSWITCHER));
 	nid.uCallbackMessage = WM_SYSTEM_TRAY_ICON;
-	nid.uVersion         = NOTIFYICON_VERSION_4;
-	wcscpy_s(nid.szTip,128,L"KeyboardAutoSwitcher - portable");
+	nid.uVersion = NOTIFYICON_VERSION_4;
+	wcscpy_s(nid.szTip, 128, L"KeyboardAutoSwitcher - portable");
 
 	Shell_NotifyIcon(NIM_ADD, &nid);
 	Shell_NotifyIcon(NIM_SETVERSION, &nid);
@@ -224,8 +229,10 @@ static void OnDestroy(HWND hWnd)
 	KillTimer(hWnd, IDT_TIMER1);
 	KillTimer(hWnd, IDT_TIMER2);
 
+	g_keyboardHook.Uninstall();
 	g_startupEnableInFlight = false;
 	EnableWindow(GetDlgItem(hWnd, IDM_CHECKBOX), TRUE);
+
 	// remove icon from system tray
 	Shell_NotifyIcon(NIM_DELETE, &nid);
 	PostQuitMessage(0);
@@ -415,6 +422,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		}
 		break;
 	}
+	case WM_KEYDOWN:
+		if (wParam == VK_ESCAPE) {
+			OnClose(hWnd);
+			return 0;
+		}
+		break;
 	case WM_COMMAND:
 	{
 		const int id = LOWORD(wParam);
@@ -422,10 +435,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
 		switch (id)
 		{
-		case IDM_ABOUT: 
+		case IDM_ABOUT:
 			OnFileAbout(hWnd, hInst);
 			break;
-		case IDM_EXIT:  
+		case IDM_EXIT:
 			OnFileExit(hWnd);
 			break;
 		case IDM_DISABLE:
@@ -524,38 +537,36 @@ VOID CALLBACK TimerProc(
 	InvalidateRect(hWnd, NULL, TRUE);
 }
 
-BOOL IsKeyPressed(int nVirtKey)
+static bool IsKeyPressed(int vKey)
 {
-	return (GetKeyState(nVirtKey) & 0x80000000) > 0;
+	return (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0;
 }
 
-LRESULT CALLBACK LowLevelHookProc(int nCode, WPARAM wParam, LPARAM lParam)
+static bool HandleKeyEvent(const KeyEvent& e)
 {
-	if (nCode < 0 || mDisableChecked) return CallNextHookEx(g_hHook, nCode, wParam, lParam);
+	// "Disable" menu item — pass-through everything
+	if (mDisableChecked)
+		return false;
 
-	KBDLLHOOKSTRUCT* data = (KBDLLHOOKSTRUCT*)lParam;
+	// ignore KeyUp (we react only on press)
+	if (!e.isKeyDown)
+		return false;
 
-	if ((data->flags & LLKHF_ALTDOWN) == 0)
+	// ignore Alt-combos (as before)
+	if (e.altDown)
+		return false;
+
+	isAnyPressed = true;
+
+	if (e.vkCode == VK_CAPITAL)
 	{
-		//WM_KEYDOWN WM_KEYUP WM_SYSKEYDOWN WM_SYSKEYUP
-		if (wParam == WM_KEYDOWN)
-		{
-			isAnyPressed = true;
+		if (IsKeyPressed(VK_SHIFT))
+			SwitchToLayoutNumber(1);
+		else
+			SwitchToLayoutNumber(0);
 
-			switch (data->vkCode) {
-			case VK_CAPITAL:
-				if (IsKeyPressed(VK_SHIFT))
-					SwitchToLayoutNumber(1);
-				else
-					SwitchToLayoutNumber(0);
-
-				return 1; // prevent windows from handling the keystroke
-			default:
-				break;
-			}
-		}
+		return true; // block CapsLock (do not toggle system state)
 	}
 
-	return CallNextHookEx(g_hHook, nCode, wParam, lParam);
+	return false;
 }
-
