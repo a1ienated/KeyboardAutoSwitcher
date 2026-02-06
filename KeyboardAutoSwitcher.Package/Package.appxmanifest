@@ -9,12 +9,12 @@
 
   <Identity
     Name="e0d70246-dd3d-4ecd-a475-1df58b573183"
-    Publisher="CN=Ghost"
+    Publisher="CN=Axion Technology"
     Version="1.0.0.0" />
 
   <Properties>
 	<DisplayName>Keyboard Auto Switcher</DisplayName>
-    <PublisherDisplayName>Ghost</PublisherDisplayName>
+    <PublisherDisplayName>Axion Technology</PublisherDisplayName>
     <Logo>Images\StoreLogo.png</Logo>
   </Properties>
 

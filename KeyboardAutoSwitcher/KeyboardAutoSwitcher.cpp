@@ -5,6 +5,10 @@
 #include<tchar.h>
 #include<xstring>
 
+#include <atomic>
+#include <thread>
+#include <winrt/Windows.ApplicationModel.h>
+
 typedef std::basic_string<TCHAR, std::char_traits<TCHAR>, std::allocator<TCHAR>>String;
 
 #define MAX_LOADSTRING 100
@@ -18,11 +22,11 @@ typedef std::basic_string<TCHAR, std::char_traits<TCHAR>, std::allocator<TCHAR>>
 #define MAX_LOADSTRING 100
 #define STRLEN(x) (sizeof(x)/sizeof(TCHAR) - 1)
 
+// global var
 UINT countTimerSec = 0;
 HHOOK g_hHook = NULL;
 BOOL isAnyPressed = FALSE;
 BOOL mDisableChecked = FALSE;
-std::mutex mtx;
 
 HINSTANCE hInst;                                // current instance
 WCHAR szTitle[MAX_LOADSTRING];                  // The title bar text
@@ -31,6 +35,9 @@ HWND hCheckbx;
 
 wchar_t info[MAX_LINE][MAX_CHAR];
 NOTIFYICONDATA nid = {};
+
+static std::atomic_bool g_startupEnableInFlight{ false };
+static StartupManager g_startupManager;
 
 // Forward declarations of functions included in this code module:
 ATOM RegMyWindowClass(HINSTANCE hInst, LPCTSTR lpzClassName);
@@ -49,9 +56,13 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
 	// Prevent from two copies of Recaps from running at the same time
 	HANDLE mutex = CreateMutex(NULL, FALSE, L"KeyboardAutoSwitcher");
 	if (!mutex || WaitForSingleObject(mutex, 0) == WAIT_TIMEOUT) {
-		//KAS_MSG(NULL, L"KeyboardAutoSwitcher is already running.");
+		KAS_DLOGF(L"KeyboardAutoSwitcher is already running.");
 		return 1;
 	}
+
+//#ifdef _DEBUG
+	winrt::init_apartment(winrt::apartment_type::single_threaded);
+//#endif
 
 	// Store instance handle in our global variable.
 	hInst = hInstance;
@@ -213,6 +224,8 @@ static void OnDestroy(HWND hWnd)
 	KillTimer(hWnd, IDT_TIMER1);
 	KillTimer(hWnd, IDT_TIMER2);
 
+	g_startupEnableInFlight = false;
+	EnableWindow(GetDlgItem(hWnd, IDM_CHECKBOX), TRUE);
 	// remove icon from system tray
 	Shell_NotifyIcon(NIM_DELETE, &nid);
 	PostQuitMessage(0);
@@ -236,7 +249,6 @@ static void OnFileExit(HWND hWnd)
 
 void SetTimerCount(unsigned int count)
 {
-//	std::lock_guard<std::mutex> lock(mtx);
 	if (count == 0)
 	{
 		countTimerSec--;
@@ -246,57 +258,146 @@ void SetTimerCount(unsigned int count)
 	countTimerSec = count;
 }
 
+static void RefreshStartupUI(HWND hWnd)
+{
+	// during RequestEnableAsync — checkbox always disabled
+	if (g_startupEnableInFlight.load()) {
+		CheckDlgButton(hWnd, IDM_CHECKBOX, BST_UNCHECKED);
+		EnableWindow(GetDlgItem(hWnd, IDM_CHECKBOX), FALSE);
+		// optional: SetWindowTextW(..., L"Enabling...");
+		return;
+	}
+
+	const auto state = g_startupManager.GetCachedState();
+	KAS_DLOGF(L"[StartupUI] state=%d", (int)state);
+
+	switch (state)
+	{
+	case StartupState::Loading:
+		CheckDlgButton(hWnd, IDM_CHECKBOX, BST_UNCHECKED);
+		EnableWindow(GetDlgItem(hWnd, IDM_CHECKBOX), FALSE);
+		break;
+
+	case StartupState::Enabled:
+		CheckDlgButton(hWnd, IDM_CHECKBOX, BST_CHECKED);
+		EnableWindow(GetDlgItem(hWnd, IDM_CHECKBOX), TRUE);
+		break;
+
+	case StartupState::Disabled:
+		CheckDlgButton(hWnd, IDM_CHECKBOX, BST_UNCHECKED);
+		EnableWindow(GetDlgItem(hWnd, IDM_CHECKBOX), TRUE);
+		break;
+
+	case StartupState::DisabledByUser:
+		CheckDlgButton(hWnd, IDM_CHECKBOX, BST_UNCHECKED);
+		EnableWindow(GetDlgItem(hWnd, IDM_CHECKBOX), TRUE);   // click → to open Settings
+		break;
+
+	case StartupState::DisabledByPolicy:
+		CheckDlgButton(hWnd, IDM_CHECKBOX, BST_UNCHECKED);
+		EnableWindow(GetDlgItem(hWnd, IDM_CHECKBOX), FALSE);  // policy = block
+		break;
+
+	case StartupState::NotConfigured:
+	default:
+		CheckDlgButton(hWnd, IDM_CHECKBOX, BST_UNCHECKED);
+		EnableWindow(GetDlgItem(hWnd, IDM_CHECKBOX), TRUE);
+		break;
+	}
+}
+
 static void HandleStartupCheckbox(HWND hWnd)
 {
-	StartupManager sm;
-	StartupState state = sm.GetState();
+	KAS_DLOGF(L"[Checkbox] clicked()");
+	const StartupState state = g_startupManager.GetCachedState();
+	KAS_DLOGF(L"[StartupClick] state=%d", (int)state);
 
-	if (state == StartupState::Enabled) {
+	switch (state)
+	{
+	case StartupState::Enabled:
+	{
 		int rc = MessageBoxW(
 			hWnd,
 			L"To disable startup, please use Windows Settings:\n"
-			L"Settings → Apps → Startup",
+			L"Settings → Apps → Startup\n\n"
+			L"Open Settings now?",
 			L"Disable startup",
 			MB_OKCANCEL | MB_ICONINFORMATION
 		);
-		// Reflect intent in UI (optional; you can also keep it checked until Settings changes)
-		CheckDlgButton(hWnd, IDM_CHECKBOX, BST_UNCHECKED);
 
-		if (rc == IDOK) {
-			sm.OpenStartupSettings();
-		}
-		else {
-			// If user canceled, revert UI to checked
-			CheckDlgButton(hWnd, IDM_CHECKBOX, BST_CHECKED);
-		}
+		if (rc == IDOK)
+			g_startupManager.OpenStartupSettings();
+
+		break;
 	}
-	else if (state == StartupState::Disabled) {
-		bool ok = sm.RequestEnable();
-		CheckDlgButton(
-			hWnd,
-			IDM_CHECKBOX,
-			ok ? BST_CHECKED : BST_UNCHECKED
-		);
+	case StartupState::Disabled:
+	{
+		if (g_startupEnableInFlight.exchange(true)) return;
+
+		EnableWindow(GetDlgItem(hWnd, IDM_CHECKBOX), FALSE);
+
+		// SetWindowTextW(GetDlgItem(hWnd, IDM_CHECKBOX), L"Enabling...");
+		// protection against race conditions
+		std::thread([hWnd]() {
+			KAS_DLOGF(L"[StartupWorker] RequestEnable()");
+			winrt::init_apartment(winrt::apartment_type::multi_threaded);
+
+			g_startupManager.RequestEnable();
+			g_startupManager.EnsureInitializedAsync(hWnd); // refresh state
+			}).detach();
+
+		break;
 	}
-	else if (state == StartupState::DisabledByUser) {
-		MessageBox(
+	case StartupState::DisabledByUser:
+	{
+		int rc = MessageBoxW(
 			hWnd,
-			L"Startup is disabled by Windows.\n"
+			L"Startup is turned off in Windows settings.\n"
 			L"Please enable Keyboard Auto Switcher in:\n"
-			L"Settings → Apps → Startup",
+			L"Settings → Apps → Startup\n\nOpen Settings now?",
 			L"Startup disabled",
-			MB_OK | MB_ICONINFORMATION
+			MB_OKCANCEL | MB_ICONINFORMATION
 		);
-		sm.OpenStartupSettings();
-		CheckDlgButton(hWnd, IDM_CHECKBOX, BST_UNCHECKED);
+
+		if (rc != IDOK)
+			return;
+
+		g_startupManager.OpenStartupSettings();
+		break;
 	}
+	case StartupState::DisabledByPolicy:
+	{
+		MessageBoxW(
+			hWnd,
+			L"Disabled by policy. Contact your administrator.",
+			L"Startup unavailable",
+			MB_OK | MB_ICONWARNING
+		);
+
+		CheckDlgButton(hWnd, IDM_CHECKBOX, BST_UNCHECKED);
+		EnableWindow(GetDlgItem(hWnd, IDM_CHECKBOX), FALSE);
+		break;
+	}
+	default: break;
+	}
+
+	RefreshStartupUI(hWnd);
 }
+
 
 //  Processes messages for the main window.
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
 	switch (message) {
-	case WM_TIMER:
+
+	case WM_APP_STARTUP_STATE_READY:
+	{
+		g_startupEnableInFlight.store(false);
+		SetWindowTextW(GetDlgItem(hWnd, IDM_CHECKBOX), L"Start with Windows");
+		RefreshStartupUI(hWnd);
+		break;
+	}
+	case WM_TIMER: {
 		if (isAnyPressed) {
 			isAnyPressed = false;
 			SetTimer(hWnd, IDT_TIMER1, ONE_SECOND * 15, NULL);
@@ -305,15 +406,21 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		else
 			SwitchToLayoutNumber(0);
 		break;
-	case WM_SYSTEM_TRAY_ICON:
+	}
+	case WM_SYSTEM_TRAY_ICON: {
 		switch (LOWORD(lParam))
 		{
-			case WM_LBUTTONDBLCLK: OnLButtonDoubleClick(hWnd);                          break;
-			case WM_CONTEXTMENU:   OnContextMenu(hWnd, LOWORD(wParam), HIWORD(wParam)); break;
+		case WM_LBUTTONDBLCLK: OnLButtonDoubleClick(hWnd);                          break;
+		case WM_CONTEXTMENU:   OnContextMenu(hWnd, LOWORD(wParam), HIWORD(wParam)); break;
 		}
 		break;
+	}
 	case WM_COMMAND:
-		switch (LOWORD(wParam))
+	{
+		const int id = LOWORD(wParam);
+		const int code = HIWORD(wParam);
+
+		switch (id)
 		{
 		case IDM_ABOUT: 
 			OnFileAbout(hWnd, hInst);
@@ -322,33 +429,40 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			OnFileExit(hWnd);
 			break;
 		case IDM_DISABLE:
-			OnDisable(hWnd, LOWORD(wParam), HIWORD(wParam));
+			OnDisable(hWnd, id, code);
 			break;
 		case IDM_CHECKBOX:
-			HandleStartupCheckbox(hWnd);
+			if (code == BN_CLICKED)
+				HandleStartupCheckbox(hWnd);
 			break;
 		default:
 			return DefWindowProc(hWnd, message, wParam, lParam);
 		}
 		break;
+	}
 	case WM_PAINT:
 		OnPaint(hWnd);
 		break;
+	case WM_ACTIVATEAPP:
+		if (wParam && !g_startupEnableInFlight.load())
+		{
+			g_startupManager.EnsureInitializedAsync(hWnd); // refresh state
+			RefreshStartupUI(hWnd);
+		}
+		break;
 	case WM_CREATE:
 	{
-		hCheckbx = CreateWindow(TEXT("button"),
+		hCheckbx = CreateWindow(
+			TEXT("button"),
 			TEXT("Start with Windows"),
 			WS_VISIBLE | WS_CHILD | BS_CHECKBOX,
 			20, 40, 185, 35,
-			hWnd, (HMENU)IDM_CHECKBOX, ((LPCREATESTRUCT)lParam)->hInstance, NULL);
+			hWnd, (HMENU)IDM_CHECKBOX,
+			((LPCREATESTRUCT)lParam)->hInstance,
+			NULL);
 
-		StartupManager sm;
-		StartupState state = sm.GetState();
-		CheckDlgButton(
-			hWnd,
-			IDM_CHECKBOX,
-			(state == StartupState::Enabled) ? BST_CHECKED : BST_UNCHECKED
-		);
+		g_startupManager.EnsureInitializedAsync(hWnd);   // Starting background initialization
+		RefreshStartupUI(hWnd);
 
 		SetTimer(hWnd, IDT_TIMER1, ONE_SECOND * 15, NULL);
 		SetTimer(hWnd, IDT_TIMER2, ONE_SECOND, (TIMERPROC)TimerProc);
