@@ -13,6 +13,9 @@ struct KeyEvent
     std::uintptr_t extraInfo = 0;
 
     bool isKeyDown = false;
+    bool isShiftDown = false;
+    bool isCtrlDown = false;
+
     bool isKeyUp = false;
     bool isSysKey = false;
     bool altDown = false;
