@@ -167,6 +167,7 @@
     <ClInclude Include="Log\logger.h" />
     <ClInclude Include="Resource.h" />
     <ClInclude Include="StartupManager.h" />
+    <ClInclude Include="StateManager.h" />
     <ClInclude Include="stdafx.h" />
     <ClInclude Include="KeyboardAutoSwitcher.h" />
     <ClInclude Include="targetver.h" />
@@ -176,6 +177,7 @@
     <ClCompile Include="KeyboardLayoutManager.cpp" />
     <ClCompile Include="Log\logger.cpp" />
     <ClCompile Include="StartupManager.cpp" />
+    <ClCompile Include="StateManager.cpp" />
     <ClCompile Include="stdafx.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>

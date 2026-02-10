@@ -58,6 +58,9 @@ static KeyEvent MakeEvent(WPARAM wParam, const KBDLLHOOKSTRUCT& native)
     e.extraInfo = static_cast<std::uintptr_t>(native.dwExtraInfo);
 
     e.isKeyDown = (wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN);
+    e.isShiftDown= (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0;
+    e.isCtrlDown = (GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0;
+
     e.isKeyUp = (wParam == WM_KEYUP || wParam == WM_SYSKEYUP);
     e.isSysKey = (wParam == WM_SYSKEYDOWN || wParam == WM_SYSKEYUP);
 

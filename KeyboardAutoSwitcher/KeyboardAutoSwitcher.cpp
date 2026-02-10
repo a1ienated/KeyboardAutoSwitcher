@@ -3,8 +3,10 @@
 #include "KeyboardLayoutManager.h"
 #include "StartupManager.h"
 #include "KeyboardHook.h"
-#include<tchar.h>
-#include<xstring>
+#include "StateManager.h"
+#include <tchar.h>
+#include <xstring>
+#include <strsafe.h>
 
 #include <atomic>
 #include <thread>
@@ -15,23 +17,17 @@ typedef std::basic_string<TCHAR, std::char_traits<TCHAR>, std::allocator<TCHAR>>
 #define MAX_LOADSTRING 100
 #define MAX_LINE 3
 #define MAX_CHAR 100
-#define IDT_TIMER1 1
-#define IDT_TIMER2 2
-#define IDT_TIMER3 3
-#define ONE_SECOND 1000
 
-#define MAX_LOADSTRING 100
 #define STRLEN(x) (sizeof(x)/sizeof(TCHAR) - 1)
 
 // global var
-UINT countTimerSec = 0;
-BOOL isAnyPressed = FALSE;
-BOOL mDisableChecked = FALSE;
-
 HINSTANCE hInst;                                // current instance
 WCHAR szTitle[MAX_LOADSTRING];                  // The title bar text
 WCHAR szWindowClass[MAX_LOADSTRING];            // the main window class name
 HWND hCheckbx;
+
+static constexpr UINT kLayoutIdleTimeoutMs = 20000;
+static constexpr UINT kUI_IdleTimeoutMs = 50;
 
 wchar_t info[MAX_LINE][MAX_CHAR];
 NOTIFYICONDATA nid = {};
@@ -41,13 +37,21 @@ static KeyboardHook g_keyboardHook;
 static std::atomic_bool g_startupEnableInFlight{ false };
 static StartupManager g_startupManager;
 
+struct GlobalState{
+	bool m_disableChecked{ false };
+	bool m_isLayoutDefault{false};
+}g_state;
+
+static Timer* g_tLayout = nullptr;
+static Timer* g_tUI = nullptr;
+
 // Forward declarations of functions included in this code module:
 ATOM RegMyWindowClass(HINSTANCE hInst, LPCTSTR lpzClassName);
 LRESULT CALLBACK    WndProc(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK    DlgProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam);
-VOID CALLBACK TimerProc(HWND hWnd, UINT message, UINT idTimer, DWORD dwTime);
 static bool HandleKeyEvent(const KeyEvent& e);
-void SetTimerCount(unsigned int count);
+static bool HandleTimerEvent(const StateEvent& e);
+static void RefreshWindow(HWND hWnd);
 
 // main window
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPWSTR lpCmdLine, _In_ int nCmdShow)
@@ -55,7 +59,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
 	UNREFERENCED_PARAMETER(hPrevInstance);
 	UNREFERENCED_PARAMETER(lpCmdLine);
 
-	// Prevent from two copies of Recaps from running at the same time
+	// Prevent from two copies of app from running at the same time
 	HANDLE mutex = CreateMutex(NULL, FALSE, L"KeyboardAutoSwitcher");
 	if (!mutex || WaitForSingleObject(mutex, 0) == WAIT_TIMEOUT) {
 		KAS_DLOGF(L"KeyboardAutoSwitcher is already running.");
@@ -70,12 +74,6 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
 	hInst = hInstance;
 
 	GetKeyboardLayouts();
-	// Set hook to capture keyboard events
-	g_keyboardHook.SetCallback(HandleKeyEvent);
-	if (!g_keyboardHook.Install()) {
-		KAS_DLOGF(L"[Hook] Failed to install WH_KEYBOARD_LL hook. err=%lu", GetLastError());
-	}
-	PostMessage(NULL, WM_NULL, 0, 0);
 
 	// Initialize global strings
 	LoadStringW(hInstance, IDS_APP_TITLE, szTitle, MAX_LOADSTRING);
@@ -98,7 +96,19 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
 		hInstance,
 		nullptr);
 
-	if (!hWnd) return FALSE;
+	if (!hWnd) return -1;
+
+	StateManager::GetInstance().SetCallback(HandleTimerEvent);
+	StateManager::GetInstance().RegisterTimer(std::make_unique<Timer>(hWnd, (UINT_PTR)1, TimerType::LayoutSwitch));
+	StateManager::GetInstance().RegisterTimer(std::make_unique<Timer>(hWnd, (UINT_PTR)2, TimerType::UI));
+	g_tLayout = StateManager::GetInstance().onTimer(TimerType::LayoutSwitch);
+	g_tUI = StateManager::GetInstance().onTimer(TimerType::UI);
+
+	// Set hook to capture keyboard events
+	g_keyboardHook.SetCallback(HandleKeyEvent);
+	if (!g_keyboardHook.Install()) {
+		KAS_DLOGF(L"[Hook] Failed to install WH_KEYBOARD_LL hook. err=%lu", GetLastError());
+	}
 
 	// Display the main program window.
 	ShowWindow(hWnd, SW_HIDE);
@@ -144,9 +154,9 @@ static void OnLButtonDoubleClick(HWND hWnd)
 {
 //	if (IsWindowVisible(hWnd) == TRUE)
 	{
-		ShowWindow(hWnd, SW_HIDE);
+		//ShowWindow(hWnd, SW_HIDE);
 		ShowWindow(hWnd, SW_RESTORE);
-//		ShowWindow(hWnd, SW_SHOW);
+		//ShowWindow(hWnd, SW_SHOW);
 	}
 }
 
@@ -165,12 +175,12 @@ static void OnDisable(HWND hWnd, int x, int y)
 	HMENU hSubMenu = GetSubMenu(hMenu, 0);
 
 	//CheckMenuItem(hSubMenu, IDM_DISABLE, MF_BYCOMMAND | MF_CHECKED);
-	mDisableChecked = !mDisableChecked;
-	MENUITEMINFO mi = { 0 };
-	mi.cbSize = sizeof(MENUITEMINFO);
-	mi.fMask = MIIM_STATE;
-	mi.fState = mDisableChecked ? MF_CHECKED : MF_UNCHECKED;
-	SetMenuItemInfo(hSubMenu, 1, TRUE, &mi);
+	g_state.m_disableChecked = !g_state.m_disableChecked;
+	MENUITEMINFO menuItem = { 0 };
+	menuItem.cbSize = sizeof(MENUITEMINFO);
+	menuItem.fMask = MIIM_STATE;
+	menuItem.fState = g_state.m_disableChecked ? MF_CHECKED : MF_UNCHECKED;
+	SetMenuItemInfo(hSubMenu, 1, TRUE, &menuItem);
 
 //	DestroyMenu(hMenu);
 }
@@ -185,10 +195,18 @@ static void OnPaint(HWND hWnd)
 	//_tcscat(strTm, _itot(countTimerSec, strCount, 10));
 	//TextOut(hDC, 20, 10, strTm, _tcsclen(strTm));
 
+	TCHAR labelLayout[256];
 	g_keyboardInfo.currentSlotLang = GetIndexLanguage();
-	TCHAR labelLayout[50] = _T("Language: ");
-	_tcscat(labelLayout, g_keyboardInfo.names[g_keyboardInfo.currentSlotLang]);
-	TextOut(hDC, 20, 30, labelLayout, _tcsclen(labelLayout));
+	//labelLayout = _T("Language: ");
+	//_tcscat(labelLayout, g_keyboardInfo.names[g_keyboardInfo.currentSlotLang]);
+
+	UINT idx = g_keyboardInfo.currentSlotLang;
+	if (idx >= g_keyboardInfo.count || idx >= MAX_LAYOUTS) idx = 0;
+	const TCHAR* name = g_keyboardInfo.names[idx];
+	if (!name || name[0] == 0) name = _T("(unknown)");
+	StringCchPrintf(labelLayout, _countof(labelLayout), _T("Language: %s"), name);
+
+	TextOut(hDC, 20, 30, labelLayout, (int)_tcslen(labelLayout));
 
 	// get spacing between lines
 	int i = 0, x = 20, y = 80, d = 0;
@@ -208,7 +226,7 @@ static void OnCreate(HWND hWnd)
 {
 	wcscpy_s(info[0], MAX_CHAR, L"Caps Lock - default layout");
 	wcscpy_s(info[1], MAX_CHAR, L"Shift + Caps Lock - second layout");
-	wcscpy_s(info[2], MAX_CHAR, L"30 sec timer - on last input switches to default layout");
+	swprintf_s(info[2], MAX_CHAR, L"%u sec timer - on last input switches to default layout", (kLayoutIdleTimeoutMs / 1000));
 
 	// add icon in system tray
 	nid.cbSize = sizeof(nid);
@@ -226,9 +244,7 @@ static void OnCreate(HWND hWnd)
 
 static void OnDestroy(HWND hWnd)
 {
-	KillTimer(hWnd, IDT_TIMER1);
-	KillTimer(hWnd, IDT_TIMER2);
-
+	//StateManager::GetInstance().Shutdown();
 	g_keyboardHook.Uninstall();
 	g_startupEnableInFlight = false;
 	EnableWindow(GetDlgItem(hWnd, IDM_CHECKBOX), TRUE);
@@ -254,15 +270,10 @@ static void OnFileExit(HWND hWnd)
 	DestroyWindow(hWnd);
 }
 
-void SetTimerCount(unsigned int count)
+static void RefreshWindow(HWND hWnd)
 {
-	if (count == 0)
-	{
-		countTimerSec--;
-		return;
-	}
-
-	countTimerSec = count;
+	// language display text
+	InvalidateRect(hWnd, NULL, TRUE);
 }
 
 static void RefreshStartupUI(HWND hWnd)
@@ -347,6 +358,9 @@ static void HandleStartupCheckbox(HWND hWnd)
 		// protection against race conditions
 		std::thread([hWnd]() {
 			KAS_DLOGF(L"[StartupWorker] RequestEnable()");
+
+			if (!hWnd)
+				return;
 			winrt::init_apartment(winrt::apartment_type::multi_threaded);
 
 			g_startupManager.RequestEnable();
@@ -391,12 +405,13 @@ static void HandleStartupCheckbox(HWND hWnd)
 	RefreshStartupUI(hWnd);
 }
 
-
 //  Processes messages for the main window.
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
-	switch (message) {
+	const int id = LOWORD(wParam);
+	const int code = HIWORD(wParam);
 
+	switch (message) {
 	case WM_APP_STARTUP_STATE_READY:
 	{
 		g_startupEnableInFlight.store(false);
@@ -404,15 +419,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		RefreshStartupUI(hWnd);
 		break;
 	}
-	case WM_TIMER: {
-		if (isAnyPressed) {
-			isAnyPressed = false;
-			SetTimer(hWnd, IDT_TIMER1, ONE_SECOND * 15, NULL);
-			SetTimerCount(10);
-		}
-		else
-			SwitchToLayoutNumber(0);
-		break;
+	case WM_TIMER:
+	{
+		//if (wParam == IDT_MY && timer.IsRunning()) { /* ... */ }
+		//RefreshWindow(hWnd);
+		break;	
 	}
 	case WM_SYSTEM_TRAY_ICON: {
 		switch (LOWORD(lParam))
@@ -423,16 +434,13 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		break;
 	}
 	case WM_KEYDOWN:
-		if (wParam == VK_ESCAPE) {
+		if (id == VK_ESCAPE) {
 			OnClose(hWnd);
 			return 0;
 		}
 		break;
 	case WM_COMMAND:
 	{
-		const int id = LOWORD(wParam);
-		const int code = HIWORD(wParam);
-
 		switch (id)
 		{
 		case IDM_ABOUT:
@@ -461,6 +469,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		{
 			g_startupManager.EnsureInitializedAsync(hWnd); // refresh state
 			RefreshStartupUI(hWnd);
+			RefreshWindow(hWnd);
 		}
 		break;
 	case WM_CREATE:
@@ -476,10 +485,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
 		g_startupManager.EnsureInitializedAsync(hWnd);   // Starting background initialization
 		RefreshStartupUI(hWnd);
-
-		SetTimer(hWnd, IDT_TIMER1, ONE_SECOND * 15, NULL);
-		SetTimer(hWnd, IDT_TIMER2, ONE_SECOND, (TIMERPROC)TimerProc);
-		SetTimerCount(10);
 		OnCreate(hWnd);
 		break;
 	}
@@ -497,7 +502,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			return (LRESULT)::GetStockObject(NULL_BRUSH);
 		}
 		break;
-
 	default:
 		return DefWindowProc(hWnd, message, wParam, lParam);
 	}
@@ -524,19 +528,6 @@ INT_PTR CALLBACK DlgProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 	return (INT_PTR)FALSE;
 }
 
-// MyTimerProc is an application-defined callback function that processes WM_TIMER messages.
-VOID CALLBACK TimerProc(
-	HWND hWnd,        // handle to window for timer messages
-	UINT message,     // WM_TIMER message
-	UINT idTimer,     // timer identifier
-	DWORD dwTime)     // current system time
-{
-	if (countTimerSec > 0)
-		SetTimerCount(0);
-
-	InvalidateRect(hWnd, NULL, TRUE);
-}
-
 static bool IsKeyPressed(int vKey)
 {
 	return (GetAsyncKeyState(vKey) & 0x8000) != 0;
@@ -544,29 +535,68 @@ static bool IsKeyPressed(int vKey)
 
 static bool HandleKeyEvent(const KeyEvent& e)
 {
+	// ignore external input
+	if (e.injected) return false;
+
 	// "Disable" menu item — pass-through everything
-	if (mDisableChecked)
-		return false;
+	if (g_state.m_disableChecked) return false;
 
 	// ignore KeyUp (we react only on press)
-	if (!e.isKeyDown)
-		return false;
+	if (!e.isKeyDown) return false;
 
 	// ignore Alt-combos (as before)
-	if (e.altDown)
-		return false;
+	if (e.altDown) return false;
 
-	isAnyPressed = true;
+	if (!g_tLayout || !g_tUI)
+		return false;
 
 	if (e.vkCode == VK_CAPITAL)
 	{
-		if (IsKeyPressed(VK_SHIFT))
+		if (e.isShiftDown)
+		{
 			SwitchToLayoutNumber(1);
+			g_state.m_isLayoutDefault = false;
+			g_tLayout->Reschedule(kLayoutIdleTimeoutMs);
+		}
 		else
+		{
 			SwitchToLayoutNumber(0);
+			g_state.m_isLayoutDefault = true;
+			g_tLayout->Stop();
+		}
+
+		g_tUI->Reschedule(kUI_IdleTimeoutMs);
 
 		return true; // block CapsLock (do not toggle system state)
 	}
 
+	if (!g_state.m_isLayoutDefault)
+		g_tLayout->Reschedule(kLayoutIdleTimeoutMs);
+
 	return false;
+}
+
+static bool HandleTimerEvent(const StateEvent& e)
+{
+	if (!g_tLayout || !g_tUI)
+		return false;
+
+	switch (e.timerType) {
+	case TimerType::LayoutSwitch:
+	{
+		SwitchToLayoutNumber(0);
+		g_tLayout->Stop();
+		g_state.m_isLayoutDefault = true;
+		break;
+	}
+	case TimerType::UI:
+	{
+		RefreshWindow(e.hWnd);
+		g_tUI->Stop();
+		break;
+	}
+	default:;
+	}
+
+	return true;
 }
