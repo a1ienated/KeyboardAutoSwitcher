@@ -4,6 +4,9 @@
 #include "StartupManager.h"
 #include "KeyboardHook.h"
 #include "StateManager.h"
+#include "Settings/SettingsModel.h"
+#include "Settings/IniSettingsStore.h"
+
 #include <tchar.h>
 #include <xstring>
 #include <strsafe.h>

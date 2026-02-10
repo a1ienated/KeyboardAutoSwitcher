@@ -166,6 +166,9 @@
     <ClInclude Include="KeyboardLayoutManager.h" />
     <ClInclude Include="Log\logger.h" />
     <ClInclude Include="Resource.h" />
+    <ClInclude Include="Settings\IniSettingsStore.h" />
+    <ClInclude Include="Settings\ISettingsStore.h" />
+    <ClInclude Include="Settings\SettingsModel.h" />
     <ClInclude Include="StartupManager.h" />
     <ClInclude Include="StateManager.h" />
     <ClInclude Include="stdafx.h" />
@@ -176,6 +179,8 @@
     <ClCompile Include="KeyboardHook.cpp" />
     <ClCompile Include="KeyboardLayoutManager.cpp" />
     <ClCompile Include="Log\logger.cpp" />
+    <ClCompile Include="Settings\IniSettingsStore.cpp" />
+    <ClCompile Include="Settings\SettingsModel.cpp" />
     <ClCompile Include="StartupManager.cpp" />
     <ClCompile Include="StateManager.cpp" />
     <ClCompile Include="stdafx.cpp">
