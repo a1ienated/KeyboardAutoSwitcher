@@ -244,7 +244,7 @@ static void OnCreate(HWND hWnd)
 
 static void OnDestroy(HWND hWnd)
 {
-	//StateManager::GetInstance().Shutdown();
+	StateManager::GetInstance().Shutdown();
 	g_keyboardHook.Uninstall();
 	g_startupEnableInFlight = false;
 	EnableWindow(GetDlgItem(hWnd, IDM_CHECKBOX), TRUE);

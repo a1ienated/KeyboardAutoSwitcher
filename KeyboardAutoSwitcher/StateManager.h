@@ -46,6 +46,8 @@ public:
 	static StateManager& GetInstance();
 	void RegisterTimer(std::unique_ptr<Timer>);
 	Timer* onTimer(TimerType tt);
+	void Shutdown();
+
 	TimerType GetType(UINT_PTR id);
 
 	void callback(StateEvent se);

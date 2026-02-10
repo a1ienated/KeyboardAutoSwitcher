@@ -85,6 +85,14 @@ Timer* StateManager::onTimer(TimerType tt)
 	return nullptr;
 }
 
+void StateManager::Shutdown()
+{
+	for (auto& [key, value] : timers)
+	{
+		value->Stop();
+	}
+}
+
 TimerType StateManager::GetType(UINT_PTR id)
 {
 	for (auto& [key, value] : timers)
