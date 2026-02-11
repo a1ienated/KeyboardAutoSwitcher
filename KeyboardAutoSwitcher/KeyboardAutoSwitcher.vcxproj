@@ -165,6 +165,8 @@
     <ClInclude Include="KeyboardHook.h" />
     <ClInclude Include="KeyboardLayoutManager.h" />
     <ClInclude Include="Log\logger.h" />
+    <ClInclude Include="Platform\Packaging.h" />
+    <ClInclude Include="Platform\StoragePaths.h" />
     <ClInclude Include="Resource.h" />
     <ClInclude Include="Settings\IniSettingsStore.h" />
     <ClInclude Include="Settings\ISettingsStore.h" />

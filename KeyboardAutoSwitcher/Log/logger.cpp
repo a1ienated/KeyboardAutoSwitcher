@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "logger.h"
+#include "Platform/StoragePaths.h"
 
 #include <comdef.h>
 #include <mutex>
@@ -21,29 +22,6 @@ namespace logger
         swprintf_s(buf, L"%04u-%02u-%02u %02u:%02u:%02u.%03u",
             st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond, st.wMilliseconds);
         return buf;
-    }
-
-    std::wstring GetLogPath()
-    {
-        PWSTR p = nullptr;
-        std::wstring base;
-
-        if (SUCCEEDED(SHGetKnownFolderPath(FOLDERID_LocalAppData, 0, nullptr, &p)) && p)
-        {
-            base = p;
-            CoTaskMemFree(p);
-        }
-        else
-        {
-            wchar_t tmp[MAX_PATH];
-            GetTempPathW(MAX_PATH, tmp);
-            base = tmp;
-        }
-
-        std::wstring dir = base + L"\\KeyboardAutoSwitcher";
-        CreateDirectoryW(dir.c_str(), nullptr);
-
-        return dir + L"\\kas.log";
     }
 
     std::string WideToUtf8(const std::wstring& w)
@@ -93,7 +71,7 @@ namespace logger
         OutputDebugStringW((line + L"\n").c_str());
 
         // File
-        AppendFileUtf8(GetLogPath(), line);
+        AppendFileUtf8(platform::storage::GetAppDataDir() + L"\\kas.log", line);
     }
 
     void Info(const wchar_t* fmt, ...)

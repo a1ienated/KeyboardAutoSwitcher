@@ -3,6 +3,7 @@
 #include <winrt/Windows.Foundation.h>
 #include <shellapi.h>
 #include <appmodel.h>
+#include "Platform/Packaging.h"
 
 #include <thread>
 #include <winrt/Windows.ApplicationModel.h>
@@ -14,12 +15,6 @@ using namespace Windows::ApplicationModel;
 
 static constexpr wchar_t kTaskId[] = L"KeyboardAutoSwitcherStartup";
 
-static bool IsPackagedProcess()
-{
-    UINT32 len = 0;
-    return GetCurrentPackageFullName(&len, nullptr) != APPMODEL_ERROR_NO_PACKAGE;
-}
-
 void StartupManager::EnsureInitializedAsync(HWND hWnd)
 {
     KAS_DLOGF(L"[StartupManager] EnsureInitializedAsync start");
@@ -30,7 +25,7 @@ void StartupManager::EnsureInitializedAsync(HWND hWnd)
         {
             KAS_DLOGF(L"[StartupManager] worker thread started");
 
-            if (!IsPackagedProcess()) {
+            if (!platform::IsPackagedProcess()) {
                 KAS_DLOGF(L"[StartupManager] NOT PACKAGED");
                 m_state.store(StartupState::NotConfigured);
                 if (IsWindow(hWnd)) PostMessageW(hWnd, WM_APP_STARTUP_STATE_READY, 0, 0);
@@ -71,7 +66,7 @@ bool StartupManager::RequestEnable()
     try
     {
         // (optional) quick guard
-        if (!IsPackagedProcess()) {
+        if (!platform::IsPackagedProcess()) {
             KAS_DLOG(L"[Startup] RequestEnable: not packaged");
             return false;
         }

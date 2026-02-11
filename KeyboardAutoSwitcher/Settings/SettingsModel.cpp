@@ -1,8 +1,8 @@
-﻿#include "stdafx.h"
+#include "stdafx.h"
 #include "SettingsModel.h"
 
 RuntimeState& Runtime()
 {
-    static RuntimeState s; // C++11+: thread-safety
-    return s;
+	static RuntimeState s;
+	return s;
 }

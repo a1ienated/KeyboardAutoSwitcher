@@ -6,7 +6,6 @@
 namespace logger
 {
     std::wstring Now();
-    std::wstring GetLogPath();
     std::string WideToUtf8(const std::wstring& w);
     void AppendFileUtf8(const std::wstring& path, const std::wstring& line);
     std::wstring HResultToText(HRESULT hr);
