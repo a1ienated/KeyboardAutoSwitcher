@@ -31,7 +31,7 @@ LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
 
 // Icon with lowest ID value placed first to ensure application icon
 // remains consistent on all systems.
-IDI_KEYBOARDAUTOSWITCHER ICON                    "KeyboardAutoSwitcher.ico"
+IDI_TRAY_ICON ICON                    "KeyboardAutoSwitcher.ico"
 
 IDI_SMALL               ICON                    "small.ico"
 
@@ -46,7 +46,7 @@ BEGIN
     POPUP "&File"
     BEGIN
         MENUITEM "About ...",                   IDM_ABOUT
-        MENUITEM "Disable",                     IDM_DISABLE
+        MENUITEM "Toggle disabled",             IDM_DISABLE
         MENUITEM SEPARATOR
         MENUITEM "E&xit",                       IDM_EXIT
     END
@@ -75,7 +75,7 @@ STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | WS_POPUP | WS_CAPTION | WS_SYSM
 CAPTION "About"
 FONT 8, "MS Shell Dlg", 0, 0, 0x1
 BEGIN
-    ICON            IDI_KEYBOARDAUTOSWITCHER,IDC_STATIC,12,8,21,20
+    ICON            IDI_TRAY_ICON,IDC_STATIC,12,8,21,20
     LTEXT           "KeyboardAutoSwitcher is a small portable Windows application that allows you to automatically switch keyboard layouts to the default.",IDC_STATIC,43,8,165,35,SS_NOPREFIX
     DEFPUSHBUTTON   "OK",IDOK,85,40,50,14,WS_GROUP
 END

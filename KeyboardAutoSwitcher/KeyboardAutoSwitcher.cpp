@@ -56,7 +56,8 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
 	// Prevent from two copies of app from running at the same time
 	HANDLE mutex = CreateMutex(NULL, FALSE, L"KeyboardAutoSwitcher");
 	if (!mutex || WaitForSingleObject(mutex, 0) == WAIT_TIMEOUT) {
-		KAS_DLOGF(L"KeyboardAutoSwitcher is already running.");
+		KAS_MSG(NULL, L"KeyboardAutoSwitcher is already running.");
+		logger::Info(L"KeyboardAutoSwitcher is already running.");
 		return 1;
 	}
 
@@ -107,13 +108,14 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
 	if (!g_tLayout || !g_tUI)
 		return false;
 
-	g_tUI->Start(g_settings.UI_IdleTimeout_ms);
-
 	// Set hook to capture keyboard events
 	g_keyboardHook.SetCallback(HandleKeyEvent);
 	if (!g_keyboardHook.Install()) {
 		KAS_DLOGF(L"[Hook] Failed to install WH_KEYBOARD_LL hook. err=%lu", GetLastError());
 	}
+
+	g_tLayout->Start(g_settings.timeout_ms);
+	g_tUI->Start(g_settings.UI_IdleTimeout_ms);
 
 	// Display the main program window.
 	ShowWindow(hWnd, SW_HIDE);
@@ -122,7 +124,6 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
 	// Loads the specified accelerator table (hot key)
 	HACCEL hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_KEYBOARDAUTOSWITCHER));
 
-	logger::Info(L"Start program");
 	// Main message loop
 	MSG msg;
 	while (GetMessage(&msg, nullptr, 0, 0))
@@ -147,7 +148,7 @@ ATOM RegMyWindowClass(HINSTANCE hInstance, LPCTSTR lpzClassName)
 	wcex.cbClsExtra = 0;
 	wcex.cbWndExtra = 0;
 	wcex.hInstance = hInstance;
-	wcex.hIcon = LoadIcon(hInstance, MAKEINTRESOURCE((LPCTSTR)IDI_KEYBOARDAUTOSWITCHER));
+	wcex.hIcon = LoadIcon(hInstance, MAKEINTRESOURCE((LPCTSTR)IDI_TRAY_ICON));
 	wcex.hIconSm = LoadIcon(wcex.hInstance, MAKEINTRESOURCE((LPCTSTR)IDI_SMALL));
 	wcex.hCursor = LoadCursor(nullptr, IDC_ARROW);
 	wcex.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
@@ -171,7 +172,7 @@ static void OnContextMenu(HWND hWnd, int x, int y)
 {
 	HMENU hMenu = GetMenu(hWnd);
 	HMENU hSubMenu = GetSubMenu(hMenu, 0);
-
+	SetForegroundWindow(hWnd);
 	TrackPopupMenu(hSubMenu, TPM_LEFTALIGN | TPM_RIGHTBUTTON, x, y, 0, hWnd, NULL);
 }
 
@@ -198,27 +199,27 @@ static void OnDisable(HWND hWnd)
 	RefreshSubMenu(hWnd);
 }
 
+static void BuildCurrentLanguageLabel(TCHAR* out, size_t outCount)
+{
+	// IMPORTANT: we read the ACTUAL layout via GetIndexLanguage()
+	UINT idx = GetIndexLanguage();
+
+	if (idx >= g_keyboardInfo.count || idx >= MAX_LAYOUTS) idx = 0;
+
+	const TCHAR* name = g_keyboardInfo.names[idx];
+	if (!name || name[0] == 0) name = _T("(unknown)");
+
+	StringCchPrintf(out, outCount, _T("Language: %s"), name);
+}
+
 // render main window
 static void OnPaint(HWND hWnd)
 {
-//	TCHAR strCount[10], strTm[20] = _T("Timer: ");
 	PAINTSTRUCT ps;
 	HDC hDC = BeginPaint(hWnd, &ps);
 
-	//_tcscat(strTm, _itot(countTimerSec, strCount, 10));
-	//TextOut(hDC, 20, 10, strTm, _tcsclen(strTm));
-
 	TCHAR labelLayout[256];
-	g_keyboardInfo.currentSlotLang = GetIndexLanguage();
-	//labelLayout = _T("Language: ");
-	//_tcscat(labelLayout, g_keyboardInfo.names[g_keyboardInfo.currentSlotLang]);
-
-	UINT idx = g_keyboardInfo.currentSlotLang;
-	if (idx >= g_keyboardInfo.count || idx >= MAX_LAYOUTS) idx = 0;
-	const TCHAR* name = g_keyboardInfo.names[idx];
-	if (!name || name[0] == 0) name = _T("(unknown)");
-	StringCchPrintf(labelLayout, _countof(labelLayout), _T("Language: %s"), name);
-
+	BuildCurrentLanguageLabel(labelLayout, _countof(labelLayout));
 	TextOut(hDC, 20, 30, labelLayout, (int)_tcslen(labelLayout));
 
 	// get spacing between lines
@@ -235,6 +236,14 @@ static void OnPaint(HWND hWnd)
 	EndPaint(hWnd, &ps);
 }
 
+static void UpdateTrayTooltip()
+{
+	NOTIFYICONDATA nd = nid;
+	nd.uFlags = NIF_TIP | NIF_SHOWTIP;
+	BuildCurrentLanguageLabel(nd.szTip, _countof(nd.szTip));
+	Shell_NotifyIcon(NIM_MODIFY, &nd);
+}
+
 static void OnCreate(HWND hWnd)
 {
 	wcscpy_s(info[0], MAX_CHAR, L"Caps Lock - default layout");
@@ -245,20 +254,21 @@ static void OnCreate(HWND hWnd)
 	// add icon in system tray
 	nid.cbSize = sizeof(nid);
 	nid.hWnd = hWnd;
-	nid.uID = IDI_KEYBOARDAUTOSWITCHER;
+	nid.uID = IDI_TRAY_ICON;
 	nid.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP | NIF_SHOWTIP;
-	nid.hIcon = LoadIcon(hInst, MAKEINTRESOURCE(IDI_KEYBOARDAUTOSWITCHER));
+	nid.hIcon = LoadIcon(hInst, MAKEINTRESOURCE(IDI_TRAY_ICON));
 	nid.uCallbackMessage = WM_SYSTEM_TRAY_ICON;
 	nid.uVersion = NOTIFYICON_VERSION_4;
 	wcscpy_s(nid.szTip, 128, L"KeyboardAutoSwitcher - portable");
 
 	Shell_NotifyIcon(NIM_ADD, &nid);
 	Shell_NotifyIcon(NIM_SETVERSION, &nid);
+
+	UpdateTrayTooltip();
 }
 
 static void OnDestroy(HWND hWnd)
 {
-	logger::Info(L"Shutdown program");
 	StateManager::GetInstance().Shutdown();
 	g_keyboardHook.Uninstall();
 	g_startupEnableInFlight = false;
@@ -598,14 +608,21 @@ static bool HandleTimerEvent(const StateEvent& e)
 
 	switch (e.timerType) {
 	case TimerType::LayoutSwitch:
-	{
-		SwitchToLayoutNumber(0);
+	{		
+		// "Disable" menu item — pass-through everything
+		if (!g_settings.enabled) return false;
+	
 		g_tLayout->Stop();
+
+		SwitchToLayoutNumber(0);
 		Runtime().isLayoutDefault = true;
+
+		g_tUI->Reschedule(g_settings.UI_IdleTimeout_ms); // update UI
 		break;
 	}
 	case TimerType::UI:
 	{
+		UpdateTrayTooltip();
 		RefreshWindow(e.hWnd);
 		g_tUI->Stop();
 		break;

@@ -9,7 +9,7 @@
 #define IDM_EXIT                        105
 #define IDM_DISABLE                     106
 #define IDD_ABOUTBOX                    107
-#define IDI_KEYBOARDAUTOSWITCHER        108
+#define IDI_TRAY_ICON			        108
 #define IDI_SMALL                       109
 #define IDC_KEYBOARDAUTOSWITCHER        110
 #define IDM_CHECKBOX                    111
