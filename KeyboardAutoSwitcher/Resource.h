@@ -2,20 +2,20 @@
 // Microsoft Visual C++ generated include file.
 // Used by KeyboardAutoSwitcher.rc
 //
-#define IDC_MYICON                      2
-#define IDD_KEYBOARDAUTOSWITCHER_DIALOG 102
-#define IDS_APP_TITLE                   103
-#define IDM_ABOUT                       104
-#define IDM_EXIT                        105
-#define IDM_DISABLE                     106
-#define IDD_ABOUTBOX                    107
-#define IDI_TRAY_ICON			        108
-#define IDI_SMALL                       109
-#define IDC_KEYBOARDAUTOSWITCHER        110
-#define IDM_CHECKBOX                    111
-#define IDR_MAINFRAME                   128
 #define ID_Menu                         32771
+#define IDC_KEYBOARDAUTOSWITCHER        101
+#define IDC_MYICON                      2
 #define IDC_STATIC                      -1
+#define IDD_ABOUTBOX                    102
+#define IDD_KEYBOARDAUTOSWITCHER_DIALOG 103
+#define IDI_SMALL                       104
+#define IDI_TRAY_ICON			        105
+#define IDM_ABOUT                       106
+#define IDM_CHECKBOX                    107
+#define IDM_DISABLE                     108
+#define IDM_EXIT                        109
+#define IDR_MAINFRAME                   110
+#define IDS_APP_TITLE                   111
 
 // Next default values for new objects
 // 

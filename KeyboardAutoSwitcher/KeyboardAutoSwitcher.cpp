@@ -45,7 +45,7 @@ INT_PTR CALLBACK    DlgProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lPara
 static bool HandleKeyEvent(const KeyEvent& e);
 static bool HandleTimerEvent(const StateEvent& e);
 static void RefreshWindow(HWND hWnd);
-static void RefreshSubMenu(HWND hWnd);
+static void RefreshSubMenu(HMENU hSubMenu, bool isDisabled);
 
 // -----------main window-----------
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPWSTR lpCmdLine, _In_ int nCmdShow)
@@ -97,8 +97,6 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
 
 	if (!hWnd) return -1;
 	
-	RefreshSubMenu(hWnd);
-
 	StateManager::GetInstance().SetCallback(HandleTimerEvent);
 	StateManager::GetInstance().RegisterTimer(std::make_unique<Timer>(hWnd, (UINT_PTR)1, TimerType::LayoutSwitch));
 	StateManager::GetInstance().RegisterTimer(std::make_unique<Timer>(hWnd, (UINT_PTR)2, TimerType::UI));
@@ -173,20 +171,20 @@ static void OnContextMenu(HWND hWnd, int x, int y)
 	HMENU hMenu = GetMenu(hWnd);
 	HMENU hSubMenu = GetSubMenu(hMenu, 0);
 	SetForegroundWindow(hWnd);
+
+	RefreshSubMenu(hSubMenu, !g_settings.enabled);
+
 	TrackPopupMenu(hSubMenu, TPM_LEFTALIGN | TPM_RIGHTBUTTON, x, y, 0, hWnd, NULL);
 }
 
-static void RefreshSubMenu(HWND hWnd)
+static void RefreshSubMenu(HMENU hSubMenu, bool isDisabled)
 {
-	HMENU hMenu = GetMenu(hWnd);
-	HMENU hSubMenu = GetSubMenu(hMenu, 0);
+	MENUITEMINFO mii{};
+	mii.cbSize = sizeof(mii);
+	mii.fMask = MIIM_STATE;
+	mii.fState = isDisabled ? MFS_CHECKED : MFS_UNCHECKED;
 
-	MENUITEMINFO menuItem = { 0 };
-	menuItem.cbSize = sizeof(MENUITEMINFO);
-	menuItem.fMask = MIIM_STATE;
-	menuItem.fState = g_settings.enabled ? MF_UNCHECKED : MF_CHECKED;
-	SetMenuItemInfo(hSubMenu, 1, TRUE, &menuItem);
-	//	DestroyMenu(hMenu);
+	SetMenuItemInfo(hSubMenu, IDM_DISABLE, FALSE, &mii); // FALSE = by ID
 }
 
 static void OnDisable(HWND hWnd)
@@ -195,8 +193,11 @@ static void OnDisable(HWND hWnd)
 	g_settings.enabled = !g_settings.enabled;
 	g_store.Save(g_settings);
 	logger::Info(L"Enabled: %d", g_settings.enabled);
+	HMENU hMenu = GetMenu(hWnd);
+	HMENU hSubMenu = GetSubMenu(hMenu, 0);
+	SetForegroundWindow(hWnd);
 
-	RefreshSubMenu(hWnd);
+	RefreshSubMenu(hSubMenu, !g_settings.enabled);
 }
 
 static void BuildCurrentLanguageLabel(TCHAR* out, size_t outCount)
@@ -474,18 +475,19 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	{
 		switch (id)
 		{
+		case IDM_CHECKBOX:
+			if (code == BN_CLICKED)
+				HandleStartupCheckbox(hWnd);
+			break;
+		case IDM_DISABLE:
+			OnDisable(hWnd);
+			g_tLayout->Reschedule(5000);
+			break;
 		case IDM_ABOUT:
 			OnFileAbout(hWnd, hInst);
 			break;
 		case IDM_EXIT:
 			OnFileExit(hWnd);
-			break;
-		case IDM_DISABLE:
-			OnDisable(hWnd);
-			break;
-		case IDM_CHECKBOX:
-			if (code == BN_CLICKED)
-				HandleStartupCheckbox(hWnd);
 			break;
 		default:
 			return DefWindowProc(hWnd, message, wParam, lParam);

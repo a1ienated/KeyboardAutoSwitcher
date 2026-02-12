@@ -46,7 +46,7 @@ BEGIN
     POPUP "&File"
     BEGIN
         MENUITEM "About ...",                   IDM_ABOUT
-        MENUITEM "Toggle disabled",             IDM_DISABLE
+        MENUITEM "Disabled",                    IDM_DISABLE
         MENUITEM SEPARATOR
         MENUITEM "E&xit",                       IDM_EXIT
     END
