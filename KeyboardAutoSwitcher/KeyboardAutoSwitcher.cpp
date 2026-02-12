@@ -29,6 +29,9 @@ static HWND hCheckbx;
 
 static wchar_t info[MAX_LINE][MAX_CHAR];
 static NOTIFYICONDATA nid = {};
+// {894475F4-A6D6-4DA5-AB38-9E0F5D1F2093}
+static const GUID kTrayGuid =
+{ 0x894475f4, 0xa6d6, 0x4da5, { 0xab, 0x38, 0x9e, 0xf, 0x5d, 0x1f, 0x20, 0x93 } };
 
 static KeyboardHook g_keyboardHook;
 static std::atomic_bool g_startupEnableInFlight{ false };
@@ -240,7 +243,8 @@ static void OnPaint(HWND hWnd)
 static void UpdateTrayTooltip()
 {
 	NOTIFYICONDATA nd = nid;
-	nd.uFlags = NIF_TIP | NIF_SHOWTIP;
+	nd.uFlags = NIF_TIP | NIF_SHOWTIP | NIF_GUID;
+	nd.guidItem = kTrayGuid;
 	BuildCurrentLanguageLabel(nd.szTip, _countof(nd.szTip));
 	Shell_NotifyIcon(NIM_MODIFY, &nd);
 }
@@ -257,10 +261,12 @@ static void OnCreate(HWND hWnd)
 	nid.hWnd = hWnd;
 	nid.uID = IDI_TRAY_ICON;
 	nid.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP | NIF_SHOWTIP;
+	nid.guidItem = kTrayGuid;
 	nid.hIcon = LoadIcon(hInst, MAKEINTRESOURCE(IDI_TRAY_ICON));
 	nid.uCallbackMessage = WM_SYSTEM_TRAY_ICON;
 	nid.uVersion = NOTIFYICON_VERSION_4;
-	wcscpy_s(nid.szTip, 128, L"KeyboardAutoSwitcher - portable");
+
+	wcscpy_s(nid.szTip, 128, L"Keyboard Auto Switcher");
 
 	Shell_NotifyIcon(NIM_ADD, &nid);
 	Shell_NotifyIcon(NIM_SETVERSION, &nid);
@@ -276,7 +282,11 @@ static void OnDestroy(HWND hWnd)
 	EnableWindow(GetDlgItem(hWnd, IDM_CHECKBOX), TRUE);
 
 	// remove icon from system tray
-	Shell_NotifyIcon(NIM_DELETE, &nid);
+	NOTIFYICONDATA nd = nid;
+	nd.uFlags = NIF_GUID;
+	nd.guidItem = kTrayGuid;
+	Shell_NotifyIcon(NIM_DELETE, &nd);
+	
 	PostQuitMessage(0);
 }
 
@@ -434,6 +444,15 @@ static void HandleStartupCheckbox(HWND hWnd)
 //  Processes messages for the main window.
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
+	static UINT sTaskbarCreated = RegisterWindowMessageW(L"TaskbarCreated");
+	if (message == sTaskbarCreated)
+	{
+		Shell_NotifyIcon(NIM_ADD, &nid);
+		Shell_NotifyIcon(NIM_SETVERSION, &nid);
+		UpdateTrayTooltip();
+		return 0;
+	}
+
 	const int id = LOWORD(wParam);
 	const int code = HIWORD(wParam);
 
