@@ -453,8 +453,14 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	case WM_SYSTEM_TRAY_ICON: {
 		switch (LOWORD(lParam))
 		{
-		case WM_LBUTTONDBLCLK: OnLButtonDoubleClick(hWnd);                          break;
-		case WM_CONTEXTMENU:   OnContextMenu(hWnd, LOWORD(wParam), HIWORD(wParam)); break;
+		case WM_LBUTTONDBLCLK: OnLButtonDoubleClick(hWnd); break;
+		case WM_CONTEXTMENU:
+		{
+			POINT p;
+			GetCursorPos(&p);
+			OnContextMenu(hWnd, p.x, p.y);
+			break;
+		}
 		}
 		break;
 	}
