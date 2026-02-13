@@ -114,7 +114,7 @@
     <Image Include="small.ico">
       <Filter>Resource Files</Filter>
     </Image>
-    <Image Include="KeyboardAutoSwitcher.ico">
+    <Image Include="main.ico">
       <Filter>Resource Files</Filter>
     </Image>
   </ItemGroup>

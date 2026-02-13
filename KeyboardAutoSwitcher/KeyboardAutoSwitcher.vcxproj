@@ -197,8 +197,8 @@
     <ResourceCompile Include="KeyboardAutoSwitcher.rc" />
   </ItemGroup>
   <ItemGroup>
+    <Image Include="main.ico" />
     <Image Include="small.ico" />
-    <Image Include="KeyboardAutoSwitcher.ico" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
