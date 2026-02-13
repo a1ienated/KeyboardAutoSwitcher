@@ -149,8 +149,8 @@ ATOM RegMyWindowClass(HINSTANCE hInstance, LPCTSTR lpzClassName)
 	wcex.cbClsExtra = 0;
 	wcex.cbWndExtra = 0;
 	wcex.hInstance = hInstance;
-	wcex.hIcon = LoadIcon(hInstance, MAKEINTRESOURCE((LPCTSTR)IDI_TRAY_ICON));
-	wcex.hIconSm = LoadIcon(wcex.hInstance, MAKEINTRESOURCE((LPCTSTR)IDI_SMALL));
+	wcex.hIcon = LoadIcon(hInstance, MAKEINTRESOURCE((LPCTSTR)IDI_APP_ICON));
+	wcex.hIconSm = LoadIcon(wcex.hInstance, MAKEINTRESOURCE((LPCTSTR)IDI_CAPTION_ICON));
 	wcex.hCursor = LoadCursor(nullptr, IDC_ARROW);
 	wcex.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
 	wcex.lpszMenuName = MAKEINTRESOURCEW(IDC_KEYBOARDAUTOSWITCHER);

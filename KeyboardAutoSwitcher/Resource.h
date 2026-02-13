@@ -8,7 +8,7 @@
 #define IDC_STATIC                      -1
 #define IDD_ABOUTBOX                    102
 #define IDD_KEYBOARDAUTOSWITCHER_DIALOG 103
-#define IDI_SMALL                       104
+#define IDI_CAPTION_ICON                104
 #define IDI_TRAY_ICON			        105
 #define IDM_ABOUT                       106
 #define IDM_CHECKBOX                    107
@@ -16,6 +16,7 @@
 #define IDM_EXIT                        109
 #define IDR_MAINFRAME                   110
 #define IDS_APP_TITLE                   111
+#define IDI_APP_ICON			        112
 
 // Next default values for new objects
 // 
