@@ -10,12 +10,12 @@
   <Identity
     Name="e0d70246-dd3d-4ecd-a475-1df58b573183"
     Publisher="CN=Axion Technology"
-    Version="1.0.0.0" />
+    Version="0.9.2.0" />
 
   <Properties>
 	<DisplayName>Keyboard Auto Switcher</DisplayName>
     <PublisherDisplayName>Axion Technology</PublisherDisplayName>
-    <Logo>Images\StoreLogo.png</Logo>
+    <Logo>Assets\StoreLogo.png</Logo>
   </Properties>
 
     <Dependencies>
@@ -37,10 +37,18 @@
         DisplayName="Keyboard Auto Switcher"
         Description="Automatically switches keyboard layouts with hotkeys and timers."
         BackgroundColor="transparent"
-        Square150x150Logo="Images\Square150x150Logo.png"
-        Square44x44Logo="Images\Square44x44Logo.png">
-        <uap:DefaultTile Wide310x150Logo="Images\Wide310x150Logo.png" />
-        <uap:SplashScreen Image="Images\SplashScreen.png" />
+        Square150x150Logo="Assets\Square150x150Logo.png"
+        Square44x44Logo="Assets\Square44x44Logo.png">
+        <uap:DefaultTile Wide310x150Logo="Assets\WideTile.png"
+						 Square71x71Logo="Assets\SmallTile.png"
+						 Square310x310Logo="Assets\LargeTile.png" ShortName="KAS">
+        <uap:ShowNameOnTiles>
+        <uap:ShowOn Tile="square150x150Logo"/>
+        <uap:ShowOn Tile="wide310x150Logo"/>
+        <uap:ShowOn Tile="square310x310Logo"/>
+        </uap:ShowNameOnTiles>
+        </uap:DefaultTile >
+        <uap:SplashScreen Image="Assets\SplashScreen.png" />
         </uap:VisualElements>
 
 	<Extensions>
@@ -61,7 +69,6 @@
   </Applications>
 
   <Capabilities>
-    <Capability Name="internetClient" />
     <rescap:Capability Name="runFullTrust" />
   </Capabilities>
 </Package>
