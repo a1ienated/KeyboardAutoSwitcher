@@ -113,6 +113,19 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
 	g_keyboardHook.SetCallback(HandleKeyEvent);
 	if (!g_keyboardHook.Install()) {
 		KAS_DLOGF(L"[Hook] Failed to install WH_KEYBOARD_LL hook. err=%lu", GetLastError());
+
+		DWORD err = GetLastError();
+
+		MessageBox(
+			NULL,
+			L"Keyboard hook initialization failed.\n\n"
+			L"The application cannot work without keyboard monitoring.\n"
+			L"Please restart the application or check system restrictions.",
+			L"Keyboard Auto Switcher",
+			MB_ICONERROR | MB_OK
+		);
+
+		return FALSE;
 	}
 
 	g_tLayout->Start(g_settings.timeout_ms);
