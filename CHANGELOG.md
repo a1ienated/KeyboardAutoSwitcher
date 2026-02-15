@@ -3,8 +3,23 @@ All notable changes to this project are documented in this file.
 
 The format is loosely based on Keep a Changelog, and this project follows SemVer.
 
+## [v0.9.3] — Store compliance & hardening
 
-## v0.9.2 — Tray & UX polish
+### Added
+- Reviewer notes for Store submission: `STORE_NOTES_v0.9.3.md` (runFullTrust rationale, no services/drivers/background tasks, StartupTask is user-controlled, hook privacy).
+- DPI-aware UI support (Per-Monitor V2), aligned with DPIAwarenessValidation.
+
+### Changed
+- Extracted UI responsibilities into `UIPresenter` (DPI scaling, fonts, layout, painting) to simplify core app code.
+- Switched UI typography to **bold** and increased font size by **+2 pt** consistently across label/text/checkbox.
+- Scaled window and controls using DIPs → pixels; added proper handling for DPI changes.
+
+### Fixed
+- UI window/control sizing becoming visually smaller after enabling DPI awareness.
+- Correct handling of `WM_DPICHANGED` and the recommended window rectangle.
+- Incorrect arrow rendering in the Settings hint (Unicode/escape fix; no more `â†’`).
+
+## [0.9.2] — Tray & UX polish
 
 ### Added
 - Tray tooltip shows the current input language.

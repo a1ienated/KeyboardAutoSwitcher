@@ -1,4 +1,4 @@
-#include "stdafx.h"
+﻿#include "stdafx.h"
 #include "KeyboardAutoSwitcher.h"
 #include "KeyboardLayoutManager.h"
 #include "StartupManager.h"
@@ -6,6 +6,7 @@
 #include "StateManager.h"
 #include "Settings/SettingsModel.h"
 #include "Settings/IniSettingsStore.h"
+#include "UI/UIPresenter.h"
 
 #include <tchar.h>
 #include <xstring>
@@ -18,8 +19,6 @@
 typedef std::basic_string<TCHAR, std::char_traits<TCHAR>, std::allocator<TCHAR>>String;
 
 #define MAX_LOADSTRING 100
-#define MAX_LINE 3
-#define MAX_CHAR 100
 
 // -----------global var-----------
 static HINSTANCE hInst;                                // current instance
@@ -27,7 +26,7 @@ static WCHAR szTitle[MAX_LOADSTRING];                  // The title bar text
 static WCHAR szWindowClass[MAX_LOADSTRING];            // the main window class name
 static HWND hCheckbx;
 
-static wchar_t info[MAX_LINE][MAX_CHAR];
+static wchar_t info[UIPresenter::MAX_LINE][UIPresenter::MAX_CHAR];
 static NOTIFYICONDATA nid = {};
 // {894475F4-A6D6-4DA5-AB38-9E0F5D1F2093}
 static const GUID kTrayGuid =
@@ -64,6 +63,8 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
 		return 1;
 	}
 
+	SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+
 //#ifdef _DEBUG
 	winrt::init_apartment(winrt::apartment_type::single_threaded);
 //#endif
@@ -86,13 +87,20 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
 		return 1;
 
 	// Create the main program window.
-	HWND hWnd = CreateWindowW(szWindowClass,
+	DWORD style = WS_OVERLAPPED | WS_SYSMENU | WS_MINIMIZEBOX;
+	DWORD exStyle = 0;
+
+	UINT dpi = GetDpiForSystem();
+	RECT rc = UIPresenter::CalcInitialWindowRectDips(410, 185, style, exStyle, true, dpi);
+
+	HWND hWnd = CreateWindowW(
+		szWindowClass,
 		szTitle,
-		WS_OVERLAPPED | WS_SYSMENU | WS_MINIMIZEBOX,
+		style,
 		CW_USEDEFAULT,
 		0,
-		400,
-		200,
+		rc.right - rc.left,
+		rc.bottom - rc.top,
 		nullptr,
 		nullptr,
 		hInstance,
@@ -113,6 +121,19 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
 	g_keyboardHook.SetCallback(HandleKeyEvent);
 	if (!g_keyboardHook.Install()) {
 		KAS_DLOGF(L"[Hook] Failed to install WH_KEYBOARD_LL hook. err=%lu", GetLastError());
+
+		DWORD err = GetLastError();
+
+		MessageBox(
+			NULL,
+			L"Keyboard hook initialization failed.\n\n"
+			L"The application cannot work without keyboard monitoring.\n"
+			L"Please restart the application or check system restrictions.",
+			L"Keyboard Auto Switcher",
+			MB_ICONERROR | MB_OK
+		);
+
+		return FALSE;
 	}
 
 	g_tLayout->Start(g_settings.timeout_ms);
@@ -216,30 +237,6 @@ static void BuildCurrentLanguageLabel(TCHAR* out, size_t outCount)
 	StringCchPrintf(out, outCount, _T("Language: %s"), name);
 }
 
-// render main window
-static void OnPaint(HWND hWnd)
-{
-	PAINTSTRUCT ps;
-	HDC hDC = BeginPaint(hWnd, &ps);
-
-	TCHAR labelLayout[256];
-	BuildCurrentLanguageLabel(labelLayout, _countof(labelLayout));
-	TextOut(hDC, 20, 30, labelLayout, (int)_tcslen(labelLayout));
-
-	// get spacing between lines
-	int i = 0, x = 20, y = 80, d = 0;
-	TEXTMETRIC tm;
-	GetTextMetrics(hDC, &tm);
-	d = tm.tmHeight + tm.tmExternalLeading;
-
-	for (; i < MAX_LINE; i++) {
-		TextOut(hDC, x, y, info[i], wcslen(info[i]));
-		y += d;
-	}
-
-	EndPaint(hWnd, &ps);
-}
-
 static void UpdateTrayTooltip()
 {
 	NOTIFYICONDATA nd = nid;
@@ -251,9 +248,9 @@ static void UpdateTrayTooltip()
 
 static void OnCreate(HWND hWnd)
 {
-	wcscpy_s(info[0], MAX_CHAR, L"Caps Lock - default layout");
-	wcscpy_s(info[1], MAX_CHAR, L"Shift + Caps Lock - second layout");
-	swprintf_s(info[2], MAX_CHAR, L"%u sec timer - on last input switches to default layout",
+	wcscpy_s(info[0], UIPresenter::MAX_CHAR, L"Caps Lock - default layout");
+	wcscpy_s(info[1], UIPresenter::MAX_CHAR, L"Shift + Caps Lock - second layout");
+	swprintf_s(info[2], UIPresenter::MAX_CHAR, L"%u sec timer - on last input switches to default layout",
 		(g_settings.timeout_ms / 1000));
 
 	// add icon in system tray
@@ -286,6 +283,8 @@ static void OnDestroy(HWND hWnd)
 	nd.uFlags = NIF_GUID;
 	nd.guidItem = kTrayGuid;
 	Shell_NotifyIcon(NIM_DELETE, &nd);
+
+	UIPresenter::Shutdown();
 	
 	PostQuitMessage(0);
 }
@@ -373,7 +372,7 @@ static void HandleStartupCheckbox(HWND hWnd)
 		int rc = MessageBoxW(
 			hWnd,
 			L"To disable startup, please use Windows Settings:\n"
-			L"Settings → Apps → Startup\n\n"
+			L"Settings \u2192 Apps \u2192 Startup\n\n"
 			L"Open Settings now?",
 			L"Disable startup",
 			MB_OKCANCEL | MB_ICONINFORMATION
@@ -411,7 +410,7 @@ static void HandleStartupCheckbox(HWND hWnd)
 			hWnd,
 			L"Startup is turned off in Windows settings.\n"
 			L"Please enable Keyboard Auto Switcher in:\n"
-			L"Settings → Apps → Startup\n\nOpen Settings now?",
+			L"Settings \u2192 Apps \u2192 Startup\n\nOpen Settings now?",
 			L"Startup disabled",
 			MB_OKCANCEL | MB_ICONINFORMATION
 		);
@@ -514,8 +513,20 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		break;
 	}
 	case WM_PAINT:
-		OnPaint(hWnd);
+	{
+		TCHAR labelLayout[256];
+		BuildCurrentLanguageLabel(labelLayout, _countof(labelLayout));
+
+		const wchar_t* lines[UIPresenter::MAX_LINE] = { info[0], info[1], info[2] };
+			
+		// render main window
+		UIPresenter::Paint(hWnd, UIPresenter::PaintModel{
+			(const wchar_t*)labelLayout,
+			lines,
+			UIPresenter::MAX_LINE
+			});
 		break;
+	}
 	case WM_ACTIVATEAPP:
 		if (wParam && !g_startupEnableInFlight.load())
 		{
@@ -524,18 +535,24 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			RefreshWindow(hWnd);
 		}
 		break;
+	case WM_DPICHANGED:
+		UIPresenter::OnDpiChanged(hWnd, wParam, lParam);
+		return 0;
 	case WM_CREATE:
 	{
 		hCheckbx = CreateWindow(
 			TEXT("button"),
 			TEXT("Start with Windows"),
 			WS_VISIBLE | WS_CHILD | BS_CHECKBOX,
-			20, 40, 185, 35,
+			0, 0, 0, 0,                // UIPresenter
 			hWnd, (HMENU)IDM_CHECKBOX,
 			((LPCREATESTRUCT)lParam)->hInstance,
 			NULL);
 
-		g_startupManager.EnsureInitializedAsync(hWnd);   // Starting background initialization
+		UIPresenter::AttachCheckbox(hCheckbx);
+		UIPresenter::InitForWindow(hWnd);
+
+		g_startupManager.EnsureInitializedAsync(hWnd); // Starting background initialization
 		RefreshStartupUI(hWnd);
 		OnCreate(hWnd);
 		break;

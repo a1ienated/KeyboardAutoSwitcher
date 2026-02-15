@@ -10,7 +10,7 @@
   <Identity
     Name="e0d70246-dd3d-4ecd-a475-1df58b573183"
     Publisher="CN=Axion Technology"
-    Version="0.9.2.0" />
+    Version="0.9.3.0" />
 
   <Properties>
 	<DisplayName>Keyboard Auto Switcher</DisplayName>

@@ -1,6 +1,8 @@
 ﻿#include "stdafx.h"
 #include "StartupManager.h"
+#include <winrt/base.h>
 #include <winrt/Windows.Foundation.h>
+#include <winrt/Windows.System.h>
 #include <shellapi.h>
 #include <appmodel.h>
 #include "Platform/Packaging.h"
@@ -97,12 +99,9 @@ bool StartupManager::RequestEnable()
 
 void StartupManager::OpenStartupSettings()
 {
-    ShellExecute(
-        nullptr,
-        L"open",
-        L"ms-settings:startupapps",
-        nullptr,
-        nullptr,
-        SW_SHOWNORMAL
-    );
+    try { winrt::init_apartment(winrt::apartment_type::single_threaded); }
+    catch (const winrt::hresult_changed_state&) {}
+
+    winrt::Windows::Foundation::Uri uri(L"ms-settings:startupapps");
+    (void)winrt::Windows::System::Launcher::LaunchUriAsync(uri);
 }
