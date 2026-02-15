@@ -1,7 +1,7 @@
 #pragma once
 #include <wtypes.h>
 
-#define MAX_LAYOUTS 5
+#define MAX_LAYOUTS 2
 #define MAX_NAME_LENGTH 1024
 
 struct KeyboardLayoutInfo {

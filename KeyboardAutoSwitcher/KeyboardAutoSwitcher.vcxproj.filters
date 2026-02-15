@@ -28,6 +28,12 @@
     <Filter Include="Header Files\Platform">
       <UniqueIdentifier>{745f819c-315f-4630-9854-7a871f3a8e56}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Header Files\UI">
+      <UniqueIdentifier>{cb29fe2d-169a-41d5-ba7c-ecc4f96ac233}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\UI">
+      <UniqueIdentifier>{465b3873-37a0-4122-83cb-49de7ddb2eac}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="stdafx.h">
@@ -75,6 +81,9 @@
     <ClInclude Include="Platform\StoragePaths.h">
       <Filter>Header Files\Platform</Filter>
     </ClInclude>
+    <ClInclude Include="UI\UIPresenter.h">
+      <Filter>Header Files\UI</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="stdafx.cpp">
@@ -103,6 +112,9 @@
     </ClCompile>
     <ClCompile Include="Settings\IniSettingsStore.cpp">
       <Filter>Source Files\Settings</Filter>
+    </ClCompile>
+    <ClCompile Include="UI\UIPresenter.cpp">
+      <Filter>Source Files\UI</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
