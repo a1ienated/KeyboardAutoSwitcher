@@ -48,6 +48,7 @@ static bool HandleKeyEvent(const KeyEvent& e);
 static bool HandleTimerEvent(const StateEvent& e);
 static void RefreshWindow(HWND hWnd);
 static void RefreshSubMenu(HMENU hSubMenu, bool isDisabled);
+static std::wstring GetMsixVersionString();
 
 // -----------main window-----------
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPWSTR lpCmdLine, _In_ int nCmdShow)
@@ -142,6 +143,8 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
 	// Display the main program window.
 	ShowWindow(hWnd, SW_HIDE);
 	UpdateWindow(hWnd);
+
+	logger::Info(L"KeyboardAutoSwitcher starting, [v%ls]", GetMsixVersionString().c_str());
 
 	// Loads the specified accelerator table (hot key)
 	HACCEL hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_KEYBOARDAUTOSWITCHER));
@@ -675,4 +678,23 @@ static bool HandleTimerEvent(const StateEvent& e)
 	}
 
 	return true;
+}
+
+static std::wstring GetMsixVersionString()
+{
+	UINT32 len = 0;
+	LONG rc = GetCurrentPackageId(&len, nullptr);
+	if (rc != ERROR_INSUFFICIENT_BUFFER || len == 0)
+		return L"Unknown package";
+
+	auto buf = std::make_unique<BYTE[]>(len);
+	if (GetCurrentPackageId(&len, buf.get()) != ERROR_SUCCESS)
+		return L"Unknown ver.";
+
+	const PACKAGE_ID* pid = reinterpret_cast<const PACKAGE_ID*>(buf.get());
+	const auto v = pid->version;
+
+	wchar_t s[32];
+	swprintf_s(s, L"%hu.%hu.%hu.%hu", v.Major, v.Minor, v.Build, v.Revision);
+	return s;
 }
