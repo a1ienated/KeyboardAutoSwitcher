@@ -71,7 +71,7 @@ namespace logger
         OutputDebugStringW((line + L"\n").c_str());
 
         // File
-        AppendFileUtf8(platform::storage::GetAppDataDir() + L"\\kas.log", line);
+        AppendFileUtf8(platform::storage::GetLocalStateDir() + L"\\kas.log", line);
     }
 
     void Info(const wchar_t* fmt, ...)
