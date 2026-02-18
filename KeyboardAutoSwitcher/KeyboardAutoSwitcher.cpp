@@ -216,15 +216,15 @@ static void RefreshSubMenu(HMENU hSubMenu, bool isDisabled)
 
 static void OnDisable(HWND hWnd)
 {
-	//CheckMenuItem(hSubMenu, IDM_DISABLE, MF_BYCOMMAND | MF_CHECKED);
 	g_settings.enabled = !g_settings.enabled;
 	g_store.Save(g_settings);
 	logger::Info(L"Enabled: %d", g_settings.enabled);
+
 	HMENU hMenu = GetMenu(hWnd);
 	HMENU hSubMenu = GetSubMenu(hMenu, 0);
-	SetForegroundWindow(hWnd);
 
 	RefreshSubMenu(hSubMenu, !g_settings.enabled);
+	DrawMenuBar(hWnd);
 }
 
 static void BuildCurrentLanguageLabel(TCHAR* out, size_t outCount)
@@ -556,8 +556,19 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		UIPresenter::InitForWindow(hWnd);
 
 		g_startupManager.EnsureInitializedAsync(hWnd); // Starting background initialization
-		RefreshStartupUI(hWnd);
 		OnCreate(hWnd);
+		// sync menu checkmark on startup
+		HMENU hMenu = GetMenu(hWnd);
+		if (hMenu)
+		{
+			HMENU hSubMenu = GetSubMenu(hMenu, 0);
+			if (hSubMenu)
+				RefreshSubMenu(hSubMenu, !g_settings.enabled);
+
+			DrawMenuBar(hWnd);
+		}
+
+		RefreshStartupUI(hWnd);
 		break;
 	}
 	case WM_DESTROY:
