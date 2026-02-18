@@ -8,9 +8,9 @@
   IgnorableNamespaces="uap desktop rescap">
 
   <Identity
-    Name="e0d70246-dd3d-4ecd-a475-1df58b573183"
-    Publisher="CN=Axion Technology"
-    Version="0.9.3.0" />
+    Name="AxionTechnology.KeyboardAutoSwitcher"
+    Publisher="CN=FBCD3E7B-D272-4F73-8C9D-0CF9BF236478"
+    Version="1.0.0.0" />
 
   <Properties>
 	<DisplayName>Keyboard Auto Switcher</DisplayName>
