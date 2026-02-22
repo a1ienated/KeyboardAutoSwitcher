@@ -1,0 +1,3 @@
+theme: jekyll-theme-cayman
+title: Keyboard Auto Switcher
+description: Switch layouts with a hotkey and auto-revert after a timeout.
