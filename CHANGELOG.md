@@ -3,6 +3,24 @@ All notable changes to this project are documented in this file.
 
 The format is loosely based on Keep a Changelog, and this project follows SemVer.
 
+## [v1.0.1] - Hotfix UI
+### Fixed
+- Synced tray context menu state on app startup to match the actual feature state.
+- UI now updates correctly after startup.
+
+### Tests
+- Disable in UI → tray menu shows Disabled (and stays consistent after restart).
+
+## [v1.0.0] - Release
+### Added
+- Microsoft Store release.
+- Persistent settings.
+- Store-safe build with polished tray UX.
+
+### Notes
+- Clean architecture with no known technical debt at release time.
+- Store assets included: screenshots, description, minimal privacy policy, keywords.
+
 ## [v0.9.3] — Store compliance & hardening
 
 ### Added
